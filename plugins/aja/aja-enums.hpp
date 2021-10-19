@@ -2,6 +2,28 @@
 
 // Additional enums used throughout the AJA plugins for signal routing configuration.
 
+namespace aja {
+
+typedef enum {
+	kConnectionKindSDI = 0,
+	kConnectionKindHDMI = 1,
+	kConnectionKindAnalog = 2,
+	kConnectionKindUnknown = 3
+} ConnectionKind;
+
+typedef enum {
+	kEnable3GOut = 1 << 0,
+	kEnable6GOut = 1 << 1,
+	kEnable12GOut = 1 << 2,
+	kConvert3GIn = 1 << 3,
+	kConvert3GOut = 1 << 4,
+	kConvert3GaRGBOut = 1 << 5,
+	kEnable3GbOut = 1 << 6,
+	kEnable4KQuads = 1 << 7,
+	kEnable4KTSI = 1 << 8,
+	kEnable8KQuads = 1 << 9,
+} RoutingPresetFlags;
+
 enum class IOSelection {
 	SDI1 = 0,
 	SDI2 = 1,
@@ -86,3 +108,5 @@ enum class HDMIWireFormat {
 	TTAP_PRO = 9,
 	Unknown = 10
 };
+
+} // aja

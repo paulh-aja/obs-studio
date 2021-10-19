@@ -8,7 +8,9 @@
 #include <vector>
 
 #include <ajantv2/includes/ntv2enums.h>
-#include <ajantv2/includes/ntv2card.h>
+#include <ajantv2/includes/ntv2publicinterface.h>
+
+class CNTV2Card;
 
 using VideoFormatMap = std::map<NTV2Standard, std::vector<NTV2VideoFormat>>;
 using VideoFormatList = std::vector<NTV2VideoFormat>;
@@ -20,31 +22,6 @@ static const uint32_t kDefaultAudioSampleSize = 4;
 static const int kVideoFormatAuto = -1;
 static const int kPixelFormatAuto = -1;
 static const NTV2PixelFormat kDefaultAJAPixelFormat = NTV2_FBF_8BIT_YCBCR;
-
-// Common OBS property helpers used by both the capture and output plugins
-extern void filter_io_selection_input_list(const std::string &cardID,
-					   const std::string &channelOwner,
-					   obs_property_t *list);
-extern void filter_io_selection_output_list(const std::string &cardID,
-					    const std::string &channelOwner,
-					    obs_property_t *list);
-extern void populate_io_selection_input_list(const std::string &cardID,
-					     const std::string &channelOwner,
-					     NTV2DeviceID deviceID,
-					     obs_property_t *list);
-extern void populate_io_selection_output_list(const std::string &cardID,
-					      const std::string &channelOwner,
-					      NTV2DeviceID deviceID,
-					      obs_property_t *list);
-extern void
-populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
-			   NTV2VideoFormat genlockFormat = NTV2_FORMAT_UNKNOWN);
-extern void populate_pixel_format_list(NTV2DeviceID deviceID,
-				       obs_property_t *list);
-extern void populate_sdi_4k_transport_list(obs_property_t *list);
-extern bool aja_video_format_changed(obs_properties_t *props,
-				     obs_property_t *list,
-				     obs_data_t *settings);
 
 // Additional helpers for AJA channel and signal routing configuration not found in the NTV2 SDK
 namespace aja {
@@ -88,5 +65,26 @@ extern bool IsSDIFourWireIOSelection(IOSelection io);
 extern bool IsMonitorOutputSelection(NTV2DeviceID id, IOSelection io);
 
 extern std::string MakeCardID(CNTV2Card &card);
+
+// RasterDefinition helpers
+extern RasterDefinition GetRasterDefinition(IOSelection io, NTV2VideoFormat vf,
+					    NTV2DeviceID deviceID);
+extern RasterDefinition DetermineRasterDefinition(NTV2VideoFormat vf);
+extern std::string RasterDefinitionToString(const RasterDefinition &rd);
+
+// SDIWireFormat helpers
+extern std::string SDIWireFormatToString(SDIWireFormat sf);
+extern uint32_t GetNumSDIWires(SDIWireFormat sf);
+extern bool IsOneWireSDIWireFormat(SDIWireFormat sf);
+extern bool IsTwoWireSDIWireFormat(SDIWireFormat sf);
+extern bool IsFourWireSDIWireFormat(SDIWireFormat sf);
+extern bool Is4KSquaresSDIWireFormat(SDIWireFormat sf);
+extern bool Is4K2SISDIWireFormat(SDIWireFormat sf);
+extern bool Is8K2SISDIWireFormat(SDIWireFormat sf);
+
+// VPIDStandard helpers
+extern bool IsSupportedVPIDStandard(VPIDStandard standard);
+extern bool Is3GVPIDStandard(VPIDStandard standard);
+extern bool Is12GVPIDStandard(VPIDStandard standard);
 
 } // aja

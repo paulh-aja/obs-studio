@@ -1,8 +1,10 @@
-#include "aja-widget-io.hpp"
+#include "widget-io.hpp"
 
 #include <ajantv2/includes/ntv2utils.h>
 
 #include <iostream>
+
+namespace aja {
 
 // firmware widget nicknames used by signal routing syntax parser
 static const char *kFramebufferNickname = "fb";
@@ -473,3 +475,5 @@ const char *WidgetOutputSocket::OutputXptName(OutputXpt xpt)
 	}
 	return name;
 }
+
+} // aja

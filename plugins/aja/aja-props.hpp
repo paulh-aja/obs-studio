@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+namespace aja {
+
 class VPIDData {
 public:
 	VPIDData();
@@ -106,3 +108,5 @@ public:
 	uint32_t audioSampleSize;
 	uint32_t audioSampleRate;
 };
+
+} //aja

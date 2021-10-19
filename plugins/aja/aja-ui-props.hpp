@@ -2,6 +2,10 @@
 
 #include <obs-module.h>
 
+#include <ajantv2/includes/ntv2enums.h>
+
+#include <string>
+
 static const char *kProgramOutputID = "aja_output";
 static const char *kPreviewOutputID = "aja_preview_output";
 
@@ -89,3 +93,28 @@ static const UIProperty kUIPropBuffering = {
 	obs_module_text("Buffering"),
 	"",
 };
+
+// OBS UI property helpers used by both the capture and output plugins
+extern void filter_io_selection_input_list(const std::string &cardID,
+					   const std::string &channelOwner,
+					   obs_property_t *list);
+extern void filter_io_selection_output_list(const std::string &cardID,
+					    const std::string &channelOwner,
+					    obs_property_t *list);
+extern void populate_io_selection_input_list(const std::string &cardID,
+					     const std::string &channelOwner,
+					     NTV2DeviceID deviceID,
+					     obs_property_t *list);
+extern void populate_io_selection_output_list(const std::string &cardID,
+					      const std::string &channelOwner,
+					      NTV2DeviceID deviceID,
+					      obs_property_t *list);
+extern void
+populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
+			   NTV2VideoFormat genlockFormat = NTV2_FORMAT_UNKNOWN);
+extern void populate_pixel_format_list(NTV2DeviceID deviceID,
+				       obs_property_t *list);
+extern void populate_sdi_4k_transport_list(obs_property_t *list);
+extern bool aja_video_format_changed(obs_properties_t *props,
+				     obs_property_t *list,
+				     obs_data_t *settings);

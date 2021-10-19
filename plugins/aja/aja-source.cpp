@@ -476,17 +476,17 @@ void AJASource::SetDeviceIndex(uint32_t index)
 //
 // AJASource Properties stuff
 //
-void AJASource::SetSourceProps(const SourceProps &props)
+void AJASource::SetSourceProps(const aja::SourceProps &props)
 {
 	mSourceProps = props;
 }
 
-SourceProps AJASource::GetSourceProps() const
+aja::SourceProps AJASource::GetSourceProps() const
 {
 	return mSourceProps;
 }
 
-bool AJASource::ReadChannelVPIDs(NTV2Channel channel, VPIDData &vpids)
+bool AJASource::ReadChannelVPIDs(NTV2Channel channel, aja::VPIDData &vpids)
 {
 	ULWord vpid_a = 0;
 	ULWord vpid_b = 0;
@@ -500,7 +500,7 @@ bool AJASource::ReadChannelVPIDs(NTV2Channel channel, VPIDData &vpids)
 bool AJASource::ReadWireFormats(NTV2DeviceID device_id,
 				const NTV2InputSourceSet &srcs,
 				NTV2VideoFormat &vf, NTV2PixelFormat &pf,
-				VPIDDataList &vpids)
+				aja::VPIDDataList &vpids)
 {
 	if (srcs.empty())
 		return false;
@@ -515,7 +515,7 @@ bool AJASource::ReadWireFormats(NTV2DeviceID device_id,
 				mCard->SetSDITransmitEnable(channel, false);
 				mCard->WaitForInputVerticalInterrupt(channel);
 
-				VPIDData vpid_data;
+				aja::VPIDData vpid_data;
 				if (ReadChannelVPIDs(channel, vpid_data))
 					vpids.push_back(vpid_data);
 			}
@@ -770,7 +770,8 @@ void aja_source_destroy(void *data)
 	CNTV2Card *card = ajaSource->GetCard();
 	if (card) {
 		deviceID = card->GetDeviceID();
-		Routing::StopSourceAudio(ajaSource->GetSourceProps(), card);
+		aja::Routing::StopSourceAudio(ajaSource->GetSourceProps(),
+					      card);
 	}
 
 	ajaSource->mVideoBuffer.Deallocate();
@@ -863,13 +864,13 @@ static void aja_source_update(void *data, obs_data_t *settings)
 		obs_data_get_string(settings, kUIPropDevice.id);
 	const std::string &currentCardID = ajaSource->CardID();
 
-	auto io_select = static_cast<IOSelection>(
+	auto io_select = static_cast<aja::IOSelection>(
 		obs_data_get_int(settings, kUIPropInput.id));
 	auto vf_select = static_cast<NTV2VideoFormat>(
 		obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
 	auto pf_select = static_cast<NTV2PixelFormat>(
 		obs_data_get_int(settings, kUIPropPixelFormatSelect.id));
-	auto t4_select = static_cast<SDI4KTransport>(
+	auto t4_select = static_cast<aja::SDI4KTransport>(
 		obs_data_get_int(settings, kUIPropSDI4KTransport.id));
 	bool dwns =
 		obs_data_get_bool(settings, kUIPropDeactivateWhenNotShowing.id);
@@ -906,7 +907,7 @@ static void aja_source_update(void *data, obs_data_t *settings)
 
 	ajaSource->SetCard(cardEntry->GetCard());
 
-	SourceProps curr_props = ajaSource->GetSourceProps();
+	aja::SourceProps curr_props = ajaSource->GetSourceProps();
 
 	// Release Channels from previous card if card ID changes
 	if (wantCardID != currentCardID) {
@@ -928,12 +929,12 @@ static void aja_source_update(void *data, obs_data_t *settings)
 				     ioSelectStr.c_str(),
 				     currentCardID.c_str());
 				ajaSource->SetCardID(wantCardID);
-				io_select = IOSelection::Invalid;
+				io_select = aja::IOSelection::Invalid;
 			}
 		}
 	}
 
-	if (io_select == IOSelection::Invalid) {
+	if (io_select == aja::IOSelection::Invalid) {
 		blog(LOG_DEBUG, "aja_source_update: Invalid IOSelection");
 		return;
 	}
@@ -947,7 +948,7 @@ static void aja_source_update(void *data, obs_data_t *settings)
 		return;
 	}
 
-	SourceProps want_props;
+	aja::SourceProps want_props;
 	want_props.deviceID = card->GetDeviceID();
 	want_props.ioSelect = io_select;
 	want_props.inputSource = *input_srcs.begin();
@@ -968,11 +969,11 @@ static void aja_source_update(void *data, obs_data_t *settings)
 	ajaSource->SetDeviceIndex((UWord)cardEntry->GetCardIndex());
 
 	if (NTV2_IS_4K_VIDEO_FORMAT(want_props.videoFormat) &&
-	    want_props.sdi4kTransport == SDI4KTransport::Squares) {
-		if (want_props.ioSelect == IOSelection::SDI1_2) {
-			want_props.ioSelect = IOSelection::SDI1_2_Squares;
-		} else if (want_props.ioSelect == IOSelection::SDI3_4) {
-			want_props.ioSelect = IOSelection::SDI3_4_Squares;
+	    want_props.sdi4kTransport == aja::SDI4KTransport::Squares) {
+		if (want_props.ioSelect == aja::IOSelection::SDI1_2) {
+			want_props.ioSelect = aja::IOSelection::SDI1_2_Squares;
+		} else if (want_props.ioSelect == aja::IOSelection::SDI3_4) {
+			want_props.ioSelect = aja::IOSelection::SDI3_4_Squares;
 		}
 	}
 
@@ -1040,8 +1041,8 @@ static void aja_source_update(void *data, obs_data_t *settings)
 
 	// Change capture format and restart capture thread
 	if (!initialized || want_props != ajaSource->GetSourceProps()) {
-		Routing::ConfigureSourceRoute(want_props, NTV2_MODE_CAPTURE,
-					      card);
+		aja::Routing::ConfigureSourceRoute(want_props,
+						   NTV2_MODE_CAPTURE, card);
 
 		ajaSource->Deactivate();
 
@@ -1053,7 +1054,7 @@ static void aja_source_update(void *data, obs_data_t *settings)
 	ajaSource->ResetVideoBuffer(want_props.videoFormat,
 				    want_props.pixelFormat);
 
-	Routing::StartSourceAudio(want_props, card);
+	aja::Routing::StartSourceAudio(want_props, card);
 
 	card->SetReference(NTV2_REFERENCE_FREERUN);
 
@@ -1106,8 +1107,9 @@ static obs_properties_t *aja_source_get_properties(void *data)
 
 void aja_source_get_defaults(obs_data_t *settings)
 {
-	obs_data_set_default_int(settings, kUIPropInput.id,
-				 static_cast<long long>(IOSelection::Invalid));
+	obs_data_set_default_int(
+		settings, kUIPropInput.id,
+		static_cast<long long>(aja::IOSelection::Invalid));
 
 	obs_data_set_default_int(settings, kUIPropVideoFormatSelect.id,
 				 static_cast<long long>(kVideoFormatAuto));
@@ -1118,7 +1120,8 @@ void aja_source_get_defaults(obs_data_t *settings)
 
 	obs_data_set_default_int(
 		settings, kUIPropSDI4KTransport.id,
-		static_cast<long long>(SDI4KTransport::TwoSampleInterleave));
+		static_cast<long long>(
+			aja::SDI4KTransport::TwoSampleInterleave));
 
 	obs_data_set_default_bool(settings, kUIPropDeactivateWhenNotShowing.id,
 				  false);

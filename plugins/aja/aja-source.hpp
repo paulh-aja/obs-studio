@@ -45,15 +45,15 @@ public:
 	void SetDeviceIndex(uint32_t index);
 
 	// Source Props
-	void SetSourceProps(const SourceProps &props);
-	SourceProps GetSourceProps() const;
+	void SetSourceProps(const aja::SourceProps &props);
+	aja::SourceProps GetSourceProps() const;
 
-	bool ReadChannelVPIDs(NTV2Channel channel, VPIDData &vpids);
+	bool ReadChannelVPIDs(NTV2Channel channel, aja::VPIDData &vpids);
 
 	bool ReadWireFormats(NTV2DeviceID device_id,
 			     const NTV2InputSourceSet &srcs,
 			     NTV2VideoFormat &vf, NTV2PixelFormat &pf,
-			     VPIDDataList &vpids);
+			     aja::VPIDDataList &vpids);
 
 	void ResetVideoBuffer(NTV2VideoFormat vf, NTV2PixelFormat pf);
 
@@ -72,7 +72,7 @@ private:
 	bool mBuffering;
 	bool mIsCapturing;
 
-	SourceProps mSourceProps;
+	aja::SourceProps mSourceProps;
 
 	NTV2TestPatternBuffer mTestPattern;
 

@@ -3,236 +3,10 @@
 #include "aja-ui-props.hpp"
 #include "aja-props.hpp"
 
+#include <ajantv2/includes/ntv2card.h>
 #include <ajantv2/includes/ntv2devicescanner.h>
 #include <ajantv2/includes/ntv2devicefeatures.h>
 #include <ajantv2/includes/ntv2utils.h>
-
-void filter_io_selection_input_list(const std::string &cardID,
-				    const std::string &channelOwner,
-				    obs_property_t *list)
-{
-	auto &cardManager = aja::CardManager::Instance();
-
-	auto cardEntry = cardManager.GetCardEntry(cardID);
-	if (!cardEntry) {
-		blog(LOG_DEBUG,
-		     "filter_io_selection_input_list: Card Entry not found for %s",
-		     cardID.c_str());
-		return;
-	}
-
-	NTV2DeviceID deviceID = DEVICE_ID_NOTFOUND;
-	CNTV2Card *card = cardEntry->GetCard();
-	if (card)
-		deviceID = card->GetDeviceID();
-
-	// Gray out the IOSelection list items that are in use by other plugin instances
-	for (size_t idx = 0; idx < obs_property_list_item_count(list); idx++) {
-		auto io_select = static_cast<IOSelection>(
-			obs_property_list_item_int(list, idx));
-
-		if (io_select == IOSelection::Invalid) {
-			obs_property_list_item_disable(list, idx, false);
-			continue;
-		}
-
-		bool enabled = cardEntry->InputSelectionReady(
-			io_select, deviceID, channelOwner);
-		obs_property_list_item_disable(list, idx, !enabled);
-		blog(LOG_DEBUG, "IOSelection %s = %s",
-		     aja::IOSelectionToString(io_select).c_str(),
-		     enabled ? "enabled" : "disabled");
-	}
-}
-
-void filter_io_selection_output_list(const std::string &cardID,
-				     const std::string &channelOwner,
-				     obs_property_t *list)
-{
-	auto &cardManager = aja::CardManager::Instance();
-
-	auto cardEntry = cardManager.GetCardEntry(cardID);
-	if (!cardEntry) {
-		blog(LOG_DEBUG,
-		     "filter_io_selection_output_list: Card Entry not found for %s",
-		     cardID.c_str());
-		return;
-	}
-
-	NTV2DeviceID deviceID = DEVICE_ID_NOTFOUND;
-	CNTV2Card *card = cardEntry->GetCard();
-	if (card)
-		deviceID = card->GetDeviceID();
-
-	// Gray out the IOSelection list items that are in use by other plugin instances
-	for (size_t idx = 0; idx < obs_property_list_item_count(list); idx++) {
-		auto io_select = static_cast<IOSelection>(
-			obs_property_list_item_int(list, idx));
-		if (io_select == IOSelection::Invalid) {
-			obs_property_list_item_disable(list, idx, false);
-			continue;
-		}
-
-		bool enabled = cardEntry->OutputSelectionReady(
-			io_select, deviceID, channelOwner);
-		obs_property_list_item_disable(list, idx, !enabled);
-		blog(LOG_DEBUG, "IOSelection %s = %s",
-		     aja::IOSelectionToString(io_select).c_str(),
-		     enabled ? "enabled" : "disabled");
-	}
-}
-
-void populate_io_selection_input_list(const std::string &cardID,
-				      const std::string &channelOwner,
-				      NTV2DeviceID deviceID,
-				      obs_property_t *list)
-{
-	obs_property_list_clear(list);
-
-	obs_property_list_add_int(list, obs_module_text(kUIPropIOSelect.text),
-				  static_cast<long long>(IOSelection::Invalid));
-
-	for (auto i = 0; i < static_cast<int32_t>(IOSelection::NumIOSelections);
-	     i++) {
-		auto ioSelect = static_cast<IOSelection>(i);
-		if (ioSelect == IOSelection::SDI1_2_Squares ||
-		    ioSelect == IOSelection::SDI3_4_Squares)
-			continue;
-
-		if (aja::DeviceCanDoIOSelectionIn(deviceID, ioSelect)) {
-			obs_property_list_add_int(
-				list,
-				aja::IOSelectionToString(ioSelect).c_str(),
-				static_cast<long long>(ioSelect));
-		}
-	}
-
-	filter_io_selection_input_list(cardID, channelOwner, list);
-}
-
-void populate_io_selection_output_list(const std::string &cardID,
-				       const std::string &channelOwner,
-				       NTV2DeviceID deviceID,
-				       obs_property_t *list)
-{
-	obs_property_list_clear(list);
-
-	obs_property_list_add_int(list, obs_module_text(kUIPropIOSelect.text),
-				  static_cast<long long>(IOSelection::Invalid));
-
-	if (deviceID == DEVICE_ID_TTAP_PRO) {
-		obs_property_list_add_int(
-			list, "SDI & HDMI",
-			static_cast<long long>(IOSelection::HDMIMonitorOut));
-	} else {
-		for (auto i = 0;
-		     i < static_cast<int32_t>(IOSelection::NumIOSelections);
-		     i++) {
-			auto ioSelect = static_cast<IOSelection>(i);
-
-			if (ioSelect == IOSelection::Invalid ||
-			    ioSelect == IOSelection::SDI1_2_Squares ||
-			    ioSelect == IOSelection::SDI3_4_Squares)
-				continue;
-
-			if (aja::DeviceCanDoIOSelectionOut(deviceID,
-							   ioSelect)) {
-				obs_property_list_add_int(
-					list,
-					aja::IOSelectionToString(ioSelect)
-						.c_str(),
-					static_cast<long long>(ioSelect));
-			}
-		}
-	}
-
-	filter_io_selection_output_list(cardID, channelOwner, list);
-}
-
-void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
-				NTV2VideoFormat genlockFormat)
-{
-	VideoFormatList videoFormats = {};
-	VideoStandardList orderedStandards = {};
-	orderedStandards.push_back(NTV2_STANDARD_525);
-	orderedStandards.push_back(NTV2_STANDARD_625);
-	if (NTV2DeviceCanDoHDVideo(deviceID)) {
-		orderedStandards.push_back(NTV2_STANDARD_720);
-		orderedStandards.push_back(NTV2_STANDARD_1080);
-		orderedStandards.push_back(NTV2_STANDARD_1080p);
-	}
-	if (NTV2DeviceCanDo2KVideo(deviceID)) {
-		orderedStandards.push_back(NTV2_STANDARD_2K);
-		orderedStandards.push_back(NTV2_STANDARD_2Kx1080p);
-		orderedStandards.push_back(NTV2_STANDARD_2Kx1080i);
-	}
-	if (NTV2DeviceCanDo4KVideo(deviceID)) {
-		orderedStandards.push_back(NTV2_STANDARD_3840i);
-		orderedStandards.push_back(NTV2_STANDARD_3840x2160p);
-		orderedStandards.push_back(NTV2_STANDARD_3840HFR);
-		orderedStandards.push_back(NTV2_STANDARD_4096i);
-		orderedStandards.push_back(NTV2_STANDARD_4096x2160p);
-		orderedStandards.push_back(NTV2_STANDARD_4096HFR);
-	}
-
-	aja::GetSortedVideoFormats(deviceID, orderedStandards, videoFormats);
-	for (const auto &vf : videoFormats) {
-		bool addFormat = true;
-
-		// Filter formats by framerate family if specified
-		if (genlockFormat != NTV2_FORMAT_UNKNOWN)
-			addFormat = IsMultiFormatCompatible(genlockFormat, vf);
-
-		if (addFormat) {
-			std::string name = NTV2VideoFormatToString(vf, true);
-			obs_property_list_add_int(list, name.c_str(), (int)vf);
-		}
-	}
-}
-
-void populate_pixel_format_list(NTV2DeviceID deviceID, obs_property_t *list)
-{
-	const NTV2PixelFormat supported_pix_fmts[] = {kDefaultAJAPixelFormat,
-						      NTV2_FBF_24BIT_BGR};
-
-	for (auto &&pf : supported_pix_fmts) {
-		if (NTV2DeviceCanDoFrameBufferFormat(deviceID, pf)) {
-			obs_property_list_add_int(
-				list,
-				NTV2FrameBufferFormatToString(pf, true).c_str(),
-				static_cast<long long>(pf));
-		}
-	}
-}
-
-void populate_sdi_4k_transport_list(obs_property_t *list)
-{
-	obs_property_list_add_int(
-		list,
-		aja::SDI4KTransportToString(SDI4KTransport::Squares).c_str(),
-		static_cast<long long>(SDI4KTransport::Squares));
-	obs_property_list_add_int(
-		list,
-		aja::SDI4KTransportToString(SDI4KTransport::TwoSampleInterleave)
-			.c_str(),
-		static_cast<long long>(SDI4KTransport::TwoSampleInterleave));
-}
-
-bool aja_video_format_changed(obs_properties_t *props, obs_property_t *list,
-			      obs_data_t *settings)
-{
-	UNUSED_PARAMETER(list);
-
-	auto vid_fmt = static_cast<NTV2VideoFormat>(
-		obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
-
-	obs_property_t *sdi_4k_trx =
-		obs_properties_get(props, kUIPropSDI4KTransport.id);
-
-	obs_property_set_visible(sdi_4k_trx, NTV2_IS_4K_VIDEO_FORMAT(vid_fmt));
-
-	return true;
-}
 
 namespace aja {
 
@@ -887,6 +661,304 @@ std::string MakeCardID(CNTV2Card &card)
 		cardID = CNTV2DeviceScanner::GetDeviceRefName(card);
 	}
 	return cardID;
+}
+
+RasterDefinition GetRasterDefinition(IOSelection io, NTV2VideoFormat vf,
+				     NTV2DeviceID deviceID)
+{
+	RasterDefinition def = RasterDefinition::Unknown;
+
+	if (NTV2_IS_SD_VIDEO_FORMAT(vf)) {
+		def = RasterDefinition::SD;
+	} else if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
+		def = RasterDefinition::HD;
+	} else if (NTV2_IS_QUAD_FRAME_FORMAT(vf)) {
+		def = RasterDefinition::UHD_4K;
+
+		/* NOTE(paulh): Special enum for Kona5 Retail & IO4K+ firmwares which route UHD/4K formats
+		 * over 1x 6G/12G SDI using an undocumented crosspoint config.
+		 */
+		if (aja::IsSDIOneWireIOSelection(io) &&
+		    aja::IsRetailSDI12G(deviceID))
+			def = RasterDefinition::UHD_4K_Retail_12G;
+	} else if (NTV2_IS_QUAD_QUAD_FORMAT(vf)) {
+		def = RasterDefinition::UHD2_8K;
+	} else {
+		def = RasterDefinition::Unknown;
+	}
+
+	return def;
+}
+
+RasterDefinition DetermineRasterDefinition(NTV2VideoFormat vf)
+{
+	RasterDefinition def = RasterDefinition::Unknown;
+
+	if (NTV2_IS_SD_VIDEO_FORMAT(vf)) {
+		def = RasterDefinition::SD;
+	} else if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
+		def = RasterDefinition::HD;
+	} else if (NTV2_IS_QUAD_FRAME_FORMAT(vf)) {
+		def = RasterDefinition::UHD_4K;
+	} else if (NTV2_IS_QUAD_QUAD_FORMAT(vf)) {
+		def = RasterDefinition::UHD2_8K;
+	} else {
+		def = RasterDefinition::Unknown;
+	}
+
+	return def;
+}
+
+// Routing ---------------------------------------------------------------------------------------
+
+static const std::vector<VPIDStandard> kVpidStandardsSupported = {
+	VPIDStandard_483_576,
+	VPIDStandard_720,
+	VPIDStandard_1080,
+	VPIDStandard_1080_DualLink,
+	VPIDStandard_720_3Ga,
+	VPIDStandard_1080_3Ga,
+	VPIDStandard_1080_DualLink_3Gb,
+	VPIDStandard_720_3Gb,
+	VPIDStandard_1080_3Gb,
+	VPIDStandard_1080_Dual_3Ga,
+	VPIDStandard_1080_Dual_3Gb,
+	VPIDStandard_1080_DualLink_3Gb,
+	VPIDStandard_2160_DualLink,
+	VPIDStandard_2160_QuadLink_3Ga,
+	VPIDStandard_2160_QuadDualLink_3Gb,
+	VPIDStandard_2160_Single_6Gb,
+	VPIDStandard_2160_Single_12Gb,
+	VPIDStandard_4320_DualLink_12Gb,
+	VPIDStandard_2160_DualLink_12Gb,
+	VPIDStandard_4320_QuadLink_12Gb,
+};
+
+static const std::vector<SDIWireFormat> kSDIWireFormatsOneWire = {
+	SDIWireFormat::SD_ST352,
+	SDIWireFormat::HD_720p_ST292,
+	SDIWireFormat::HD_1080_ST292,
+	SDIWireFormat::HD_720p_ST425_3Ga,
+	SDIWireFormat::HD_1080p_ST425_3Ga,
+	SDIWireFormat::HD_1080p_ST425_3Gb_DL,
+	SDIWireFormat::HD_720p_ST425_3Gb,
+	SDIWireFormat::HD_1080p_ST425_3Gb,
+	SDIWireFormat::UHD4K_ST2018_6G_Squares_2SI,
+	SDIWireFormat::UHD4K_ST2018_12G_Squares_2SI,
+};
+
+static const std::vector<SDIWireFormat> kSDIWireFormatsTwoWire = {
+	SDIWireFormat::HD_1080_ST372_Dual,
+	SDIWireFormat::HD_1080p_ST425_Dual_3Ga,
+	SDIWireFormat::HD_1080p_ST425_Dual_3Gb,
+	SDIWireFormat::UHD4K_ST425_Dual_3Gb_2SI,
+	SDIWireFormat::UHD28K_ST2082_Dual_12G,
+	SDIWireFormat::UHD28K_ST2082_RGB_Dual_12G,
+};
+
+static const std::vector<SDIWireFormat> kSDIWireFormatsFourWire = {
+	SDIWireFormat::UHD4K_ST292_Quad_1_5_Squares,
+	SDIWireFormat::UHD4K_ST425_Quad_3Ga_Squares,
+	SDIWireFormat::UHD4K_ST425_Quad_3Gb_Squares,
+	SDIWireFormat::UHD4K_ST425_Quad_3Ga_2SI,
+	SDIWireFormat::UHD4K_ST425_Quad_3Gb_2SI,
+	SDIWireFormat::UHD28K_ST2082_Quad_12G,
+};
+
+static const std::vector<SDIWireFormat> kSDIWireFormats4KSquares = {
+	SDIWireFormat::UHD4K_ST292_Quad_1_5_Squares,
+	SDIWireFormat::UHD4K_ST425_Quad_3Ga_Squares,
+	SDIWireFormat::UHD4K_ST425_Quad_3Gb_Squares,
+	SDIWireFormat::UHD4K_ST2018_6G_Squares_2SI,
+	SDIWireFormat::UHD4K_ST2018_12G_Squares_2SI,
+};
+
+static const std::vector<SDIWireFormat> kSDIWireFormats4K2SI = {
+	SDIWireFormat::UHD4K_ST425_Dual_3Gb_2SI,
+	SDIWireFormat::UHD4K_ST425_Quad_3Ga_2SI,
+	SDIWireFormat::UHD4K_ST425_Quad_3Gb_2SI,
+	// SDIWireFormat::UHD4K_ST2018_6G_Squares_2SI, // TODO(paulh): What are these formats actually, Squares or TSI?
+	// SDIWireFormat::UHD4K_ST2018_12G_Squares_2SI,
+};
+
+static const std::vector<SDIWireFormat> kSDIWireFormats8K2SI = {
+	SDIWireFormat::UHD28K_ST2082_Dual_12G,
+	SDIWireFormat::UHD28K_ST2082_RGB_Dual_12G,
+	SDIWireFormat::UHD28K_ST2082_Quad_12G,
+};
+
+static const std::vector<VPIDStandard> kVpidStandards3gSdi = {
+	VPIDStandard_720_3Ga,           VPIDStandard_1080_3Ga,
+	VPIDStandard_1080_DualLink_3Gb, VPIDStandard_720_3Gb,
+	VPIDStandard_1080_3Gb,          VPIDStandard_1080_Dual_3Ga,
+	VPIDStandard_1080_Dual_3Gb,     VPIDStandard_1080_3Ga,
+	VPIDStandard_1080_DualLink_3Gb, VPIDStandard_2160_DualLink,
+	VPIDStandard_2160_QuadLink_3Ga, VPIDStandard_2160_QuadDualLink_3Gb,
+};
+
+static const std::vector<VPIDStandard> kVpidStandards12gSdi = {
+	VPIDStandard_2160_Single_6Gb,    VPIDStandard_2160_Single_12Gb,
+	VPIDStandard_4320_DualLink_12Gb, VPIDStandard_2160_DualLink_12Gb,
+	VPIDStandard_4320_QuadLink_12Gb,
+};
+
+static const std::vector<VPIDStandard> kVpidStandardsLevelA = {
+	VPIDStandard_720_3Ga,           VPIDStandard_1080_3Ga,
+	VPIDStandard_1080_Dual_3Ga,     VPIDStandard_1080_3Ga,
+	VPIDStandard_2160_QuadLink_3Ga,
+};
+
+static const std::vector<VPIDStandard> kVpidStandardsLevelB = {
+	VPIDStandard_1080_DualLink_3Gb,
+	VPIDStandard_720_3Gb,
+	VPIDStandard_1080_3Gb,
+	VPIDStandard_1080_Dual_3Gb,
+	VPIDStandard_1080_DualLink_3Gb,
+	VPIDStandard_2160_DualLink,
+	VPIDStandard_2160_QuadDualLink_3Gb,
+};
+
+#define NTV2UTILS_ENUM_CASE_RETURN_STR(enum_name) \
+	case (enum_name):                         \
+		return #enum_name
+std::string RasterDefinitionToString(const RasterDefinition &rd)
+{
+	std::string str = "";
+
+	switch (rd) {
+		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::SD);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::HD);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::UHD_4K);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			RasterDefinition::UHD_4K_Retail_12G);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::UHD2_8K);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::Unknown);
+	}
+
+	return str;
+}
+
+std::string SDIWireFormatToString(SDIWireFormat svf)
+{
+	std::string str = "";
+
+	switch (svf) {
+		NTV2UTILS_ENUM_CASE_RETURN_STR(SDIWireFormat::SD_ST352);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(SDIWireFormat::HD_720p_ST292);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(SDIWireFormat::HD_1080_ST292);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::HD_1080_ST372_Dual);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::HD_720p_ST425_3Ga);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::HD_1080p_ST425_3Ga);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::HD_1080p_ST425_3Gb_DL);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::HD_720p_ST425_3Gb);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::HD_1080p_ST425_3Gb);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::HD_1080p_ST425_Dual_3Ga);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::HD_1080p_ST425_Dual_3Gb);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD4K_ST292_Quad_1_5_Squares);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD4K_ST292_Dual_1_5_Squares);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD4K_ST425_Quad_3Ga_Squares);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD4K_ST425_Quad_3Gb_Squares);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD4K_ST425_Dual_3Gb_2SI);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD4K_ST425_Quad_3Ga_2SI);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD4K_ST425_Quad_3Gb_2SI);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD4K_ST2018_6G_Squares_2SI);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD4K_ST2018_12G_Squares_2SI);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD28K_ST2082_Dual_12G);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD28K_ST2082_RGB_Dual_12G);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::UHD28K_ST2082_Quad_12G);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(SDIWireFormat::Unknown);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::
+				UHD4K_ST2018_6G_Squares_2SI_Kona5_io4KPlus);
+		NTV2UTILS_ENUM_CASE_RETURN_STR(
+			SDIWireFormat::
+				UHD4K_ST2018_12G_Squares_2SI_Kona5_io4KPlus);
+	}
+
+	return str;
+}
+
+uint32_t GetNumSDIWires(SDIWireFormat sf)
+{
+	if (IsOneWireSDIWireFormat(sf))
+		return 1;
+	else if (IsTwoWireSDIWireFormat(sf))
+		return 2;
+	else if (IsFourWireSDIWireFormat(sf))
+		return 4;
+	return 0;
+}
+
+//
+// SDIWireFormat helpers
+//
+bool IsOneWireSDIWireFormat(SDIWireFormat sf)
+{
+	return aja::vec_contains<SDIWireFormat>(kSDIWireFormatsOneWire, sf);
+}
+
+bool IsTwoWireSDIWireFormat(SDIWireFormat sf)
+{
+	return aja::vec_contains<SDIWireFormat>(kSDIWireFormatsTwoWire, sf);
+}
+
+bool IsFourWireSDIWireFormat(SDIWireFormat sf)
+{
+	return aja::vec_contains<SDIWireFormat>(kSDIWireFormatsFourWire, sf);
+}
+
+bool Is4KSquaresSDIWireFormat(SDIWireFormat sf)
+{
+	return aja::vec_contains<SDIWireFormat>(kSDIWireFormats4KSquares, sf);
+}
+
+bool Is4K2SISDIWireFormat(SDIWireFormat sf)
+{
+	return aja::vec_contains<SDIWireFormat>(kSDIWireFormats4K2SI, sf);
+}
+
+bool Is8K2SISDIWireFormat(SDIWireFormat sf)
+{
+	return aja::vec_contains<SDIWireFormat>(kSDIWireFormats8K2SI, sf);
+}
+
+//
+// VPIDStandard helpers
+//
+bool IsSupportedVPIDStandard(VPIDStandard standard)
+{
+	return aja::vec_contains<VPIDStandard>(kVpidStandardsSupported,
+					       standard);
+}
+
+bool Is3GVPIDStandard(VPIDStandard standard)
+{
+	return aja::vec_contains<VPIDStandard>(kVpidStandards3gSdi, standard);
+}
+
+bool Is12GVPIDStandard(VPIDStandard standard)
+{
+	return aja::vec_contains<VPIDStandard>(kVpidStandards12gSdi, standard);
 }
 
 } // aja

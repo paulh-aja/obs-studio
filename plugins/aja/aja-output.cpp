@@ -126,7 +126,7 @@ CNTV2Card *AJAOutput::GetCard()
 	return mCard;
 }
 
-void AJAOutput::Initialize(const OutputProps &props)
+void AJAOutput::Initialize(const aja::OutputProps &props)
 {
 	const auto &audioSystem = props.AudioSystem();
 
@@ -179,12 +179,12 @@ obs_output_t *AJAOutput::GetOBSOutput()
 	return mOBSOutput;
 }
 
-void AJAOutput::SetOutputProps(const OutputProps &props)
+void AJAOutput::SetOutputProps(const aja::OutputProps &props)
 {
 	mOutputProps = props;
 }
 
-OutputProps AJAOutput::GetOutputProps() const
+aja::OutputProps AJAOutput::GetOutputProps() const
 {
 	return mOutputProps;
 }
@@ -484,7 +484,7 @@ void AJAOutput::increment_card_frame()
 }
 
 // Perform DMA of audio samples to AJA card while taking into account wrapping around the
-// ends of the card's audio buffer (size set to 4MB in Routing::ConfigureOutputAudio).
+// ends of the card's audio buffer (size set to 4MB in aja::Routing::ConfigureOutputAudio).
 void AJAOutput::dma_audio_samples(NTV2AudioSystem audioSys, uint32_t *data,
 				  size_t size)
 {
@@ -794,16 +794,16 @@ bool aja_output_dest_changed(obs_properties_t *props, obs_property_t *list,
 	}
 
 	// Revert to "Select..." if desired IOSelection is already in use
-	auto io_select = static_cast<IOSelection>(
+	auto io_select = static_cast<aja::IOSelection>(
 		obs_data_get_int(settings, kUIPropOutput.id));
 	for (size_t i = 0; i < obs_property_list_item_count(list); i++) {
-		auto io_item = static_cast<IOSelection>(
+		auto io_item = static_cast<aja::IOSelection>(
 			obs_property_list_item_int(list, i));
 		if (io_item == io_select &&
 		    obs_property_list_item_disabled(list, i)) {
-			obs_data_set_int(
-				settings, kUIPropOutput.id,
-				static_cast<long long>(IOSelection::Invalid));
+			obs_data_set_int(settings, kUIPropOutput.id,
+					 static_cast<long long>(
+						 aja::IOSelection::Invalid));
 			blog(LOG_WARNING,
 			     "aja_output_dest_changed: IOSelection %s is already in use",
 			     aja::IOSelectionToString(io_select).c_str());
@@ -866,10 +866,10 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 
 	NTV2DeviceID deviceID = card->GetDeviceID();
 
-	OutputProps outputProps(deviceID);
-	outputProps.ioSelect = static_cast<IOSelection>(
+	aja::OutputProps outputProps(deviceID);
+	outputProps.ioSelect = static_cast<aja::IOSelection>(
 		obs_data_get_int(settings, kUIPropOutput.id));
-	if (outputProps.ioSelect == IOSelection::Invalid) {
+	if (outputProps.ioSelect == aja::IOSelection::Invalid) {
 		blog(LOG_DEBUG,
 		     "aja_output_create: Select a valid AJA Output IOSelection!");
 		return nullptr;
@@ -879,7 +879,7 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 		obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
 	outputProps.pixelFormat = static_cast<NTV2PixelFormat>(
 		obs_data_get_int(settings, kUIPropPixelFormatSelect.id));
-	outputProps.sdi4kTransport = static_cast<SDI4KTransport>(
+	outputProps.sdi4kTransport = static_cast<aja::SDI4KTransport>(
 		obs_data_get_int(settings, kUIPropSDI4KTransport.id));
 
 	outputProps.audioNumChannels = kDefaultAudioChannels;
@@ -887,11 +887,11 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 	outputProps.audioSampleRate = kDefaultAudioSampleRate;
 
 	if (NTV2_IS_4K_VIDEO_FORMAT(outputProps.videoFormat) &&
-	    outputProps.sdi4kTransport == SDI4KTransport::Squares) {
-		if (outputProps.ioSelect == IOSelection::SDI1_2) {
-			outputProps.ioSelect = IOSelection::SDI1_2_Squares;
-		} else if (outputProps.ioSelect == IOSelection::SDI3_4) {
-			outputProps.ioSelect = IOSelection::SDI3_4_Squares;
+	    outputProps.sdi4kTransport == aja::SDI4KTransport::Squares) {
+		if (outputProps.ioSelect == aja::IOSelection::SDI1_2) {
+			outputProps.ioSelect = aja::IOSelection::SDI1_2_Squares;
+		} else if (outputProps.ioSelect == aja::IOSelection::SDI3_4) {
+			outputProps.ioSelect = aja::IOSelection::SDI3_4_Squares;
 		}
 	}
 
@@ -1010,14 +1010,14 @@ static bool aja_output_start(void *data)
 	}
 
 	// Configures crosspoint routing on AJA card
-	if (!Routing::ConfigureOutputRoute(outputProps, NTV2_MODE_DISPLAY,
-					   card)) {
+	if (!aja::Routing::ConfigureOutputRoute(outputProps, NTV2_MODE_DISPLAY,
+						card)) {
 		blog(LOG_ERROR,
 		     "aja_output_start: Error configuring output route!");
 		return false;
 	}
 
-	Routing::ConfigureOutputAudio(outputProps, card);
+	aja::Routing::ConfigureOutputAudio(outputProps, card);
 
 	const auto &formatDesc = outputProps.FormatDesc();
 	struct video_scale_info scaler = {};

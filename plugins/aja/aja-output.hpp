@@ -63,13 +63,13 @@ public:
 
 	CNTV2Card *GetCard();
 
-	void Initialize(const OutputProps &props);
+	void Initialize(const aja::OutputProps &props);
 
 	void SetOBSOutput(obs_output_t *output);
 	obs_output_t *GetOBSOutput();
 
-	void SetOutputProps(const OutputProps &props);
-	OutputProps GetOutputProps() const;
+	void SetOutputProps(const aja::OutputProps &props);
+	aja::OutputProps GetOutputProps() const;
 
 	void GenerateTestPattern(NTV2VideoFormat vf, NTV2PixelFormat pf,
 				 NTV2TestPatternSelect pattern);
@@ -145,7 +145,7 @@ private:
 
 	CNTV2Card *mCard;
 
-	OutputProps mOutputProps;
+	aja::OutputProps mOutputProps;
 
 	NTV2TestPatternBuffer mTestPattern;
 

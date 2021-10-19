@@ -29,11 +29,14 @@ set(aja_SOURCES
 	main.cpp
 	aja-card-manager.cpp
 	aja-common.cpp
+	aja-ui-props.cpp
 	aja-output.cpp
 	aja-props.cpp
 	aja-routing.cpp
 	aja-source.cpp
-	aja-widget-io.cpp)
+	routing/presets.cpp
+	# routing/routing.cpp
+	routing/widget-io.cpp)
 
 set(aja_HEADERS
 	aja-card-manager.hpp
@@ -44,7 +47,18 @@ set(aja_HEADERS
 	aja-props.hpp
 	aja-routing.hpp
 	aja-source.hpp
-	aja-widget-io.hpp)
+	routing/boolinq.h
+	routing/hdmi_rgb_capture.hpp
+	routing/hdmi_rgb_display.hpp
+	routing/hdmi_ycbcr_capture.hpp
+	routing/hdmi_ycbcr_display.hpp
+	routing/presets.hpp
+	# routing/routing.hpp
+	routing/sdi_rgb_capture.hpp
+	routing/sdi_rgb_display.hpp
+	routing/sdi_ycbcr_capture.hpp
+	routing/sdi_ycbcr_display.hpp
+	routing/widget-io.hpp)
 
 # macOS
 if(APPLE)
@@ -63,6 +77,7 @@ if(APPLE)
 # Windows
 elseif(WIN32)
 	set(aja_COMPILE_DEFS
+		-DNOMINMAX # for boolinq
 		AJA_WINDOWS
 		_WINDOWS
 		WIN32

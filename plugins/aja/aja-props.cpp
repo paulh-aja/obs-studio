@@ -4,6 +4,8 @@
 #include <ajantv2/includes/ntv2utils.h>
 #include <ajantv2/includes/ntv2vpid.h>
 
+namespace aja {
+
 VPIDData::VPIDData()
 	: mVpidA{0},
 	  mVpidB{0},
@@ -433,3 +435,5 @@ speaker_layout OutputProps::SpeakerLayout() const
 	// NTV2 is always at least 8ch on modern boards
 	return SPEAKERS_7POINT1;
 }
+
+} // aja

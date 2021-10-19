@@ -4,6 +4,8 @@
 
 #include <string>
 
+namespace aja {
+
 using OutputXpt = NTV2OutputCrosspointID; // src
 using InputXpt = NTV2InputCrosspointID;   // dest
 
@@ -40,3 +42,5 @@ struct WidgetOutputSocket {
 	static NTV2Channel OutputXptChannel(OutputXpt xpt);
 	static const char *OutputXptName(OutputXpt xpt);
 };
+
+} // aja
