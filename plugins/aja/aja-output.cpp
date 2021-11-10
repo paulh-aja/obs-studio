@@ -5,6 +5,7 @@
 #include "aja-routing.hpp"
 
 #include <obs-module.h>
+#include <util/platform.h>
 
 #include <ajabase/common/timer.h>
 #include <ajabase/system/systemtime.h>
@@ -15,8 +16,11 @@
 #include <atomic>
 #include <stdlib.h>
 
-static constexpr double kAVPrerollSec = 0.1;
+#define AJA_OUTPUT_STATS
+
 static constexpr uint32_t kNumCardFrames = 3;
+static const int64_t kDefaultStatPeriod = 3000000000;
+static const int64_t kAudioSyncAdjust = 20000;
 
 static void copy_audio_data(struct audio_data *src, struct audio_data *dst,
 			    size_t size)
@@ -61,22 +65,33 @@ AJAOutput::AJAOutput(CNTV2Card *card, const std::string &cardID,
 	  mDeviceIndex{deviceIndex},
 	  mDeviceID{deviceID},
 	  mFrameTimes{},
-	  mAudioPrerollSec{kAVPrerollSec},
-	  mAudioPrerollBytes{0},
-	  mMinVideoQueueSize{0},
-	  mMinAudioQueueSize{0},
 	  mAudioPlayCursor{0},
 	  mAudioWriteCursor{0},
 	  mAudioWrapAddress{0},
+      mAudioRate{0},
+      mAudioQueueSamples{0},
+      mAudioWriteSamples{0},
+      mAudioPlaySamples{0},
 	  mNumCardFrames{0},
 	  mFirstCardFrame{0},
-	  mCurrentCardFrame{0},
 	  mLastCardFrame{0},
-	  mVideoFrameCount{0},
+	  mWriteCardFrame{0},
+	  mPlayCardFrame{0},
+	  mPlayCardNext{0},
+	  mFrameRateNum{0},
+	  mFrameRateDen{0},
+      mVideoQueueFrames{0},
+      mVideoWriteFrames{0},
+      mVideoPlayFrames{0},
 	  mFirstVideoTS{0},
 	  mFirstAudioTS{0},
 	  mLastVideoTS{0},
 	  mLastAudioTS{0},
+      mVideoDelay{0},
+      mAudioDelay{0},
+      mAudioVideoSync{0},
+      mAudioAdjust{0},
+      mLastStatTime{0},
 #ifdef AJA_WRITE_DEBUG_WAV
 	  mWaveWriter{nullptr},
 #endif
@@ -139,7 +154,7 @@ void AJAOutput::Initialize(const OutputProps &props)
 				     props.Channel(), props.videoFormat,
 				     props.pixelFormat);
 
-	mCard->SetOutputFrame(props.Channel(), mCurrentCardFrame);
+	mCard->SetOutputFrame(props.Channel(), mWriteCardFrame);
 
 	mCard->WaitForOutputVerticalInterrupt(props.Channel());
 
@@ -149,6 +164,8 @@ void AJAOutput::Initialize(const OutputProps &props)
 	ULWord fpsNum = 0;
 	ULWord fpsDen = 0;
 	GetFramesPerSecond(cardFrameRate, fpsNum, fpsDen);
+    mFrameRateNum = fpsNum;
+    mFrameRateDen = fpsDen;
 	mFrameTimes.cardFrameTime =
 		(1000000000ULL / (uint64_t)(fpsNum / fpsDen));
 	mFrameTimes.cardFps = (double)(fpsNum / fpsDen);
@@ -158,14 +175,11 @@ void AJAOutput::Initialize(const OutputProps &props)
 	mFrameTimes.obsFrameTime =
 		(1000000000ULL / (uint64_t)mFrameTimes.obsFps);
 
-	mMinVideoQueueSize = (uint32_t)(kAVPrerollSec * mFrameTimes.obsFps);
+    mVideoDelay =  ((int64_t)mNumCardFrames - 0) * 1000000 *
+                mFrameRateDen / mFrameRateNum;
 
-	double prerollSamples =
-		mAudioPrerollSec * (double)props.audioSampleRate;
-	mAudioPrerollBytes =
-		(uint32_t)prerollSamples * (uint32_t)props.AudioSize();
-	mMinAudioQueueSize = (uint32_t)prerollSamples / AUDIO_OUTPUT_FRAMES;
-
+   mAudioRate = props.audioSampleRate;
+    
 	SetOutputProps(props);
 }
 
@@ -222,10 +236,10 @@ void AJAOutput::GenerateTestPattern(NTV2VideoFormat vf, NTV2PixelFormat pf,
 
 	auto outputChannel = mOutputProps.Channel();
 
-	mCard->SetOutputFrame(outputChannel, mCurrentCardFrame);
+	mCard->SetOutputFrame(outputChannel, mWriteCardFrame);
 
 	mCard->DMAWriteFrame(
-		mCurrentCardFrame,
+		mWriteCardFrame,
 		reinterpret_cast<ULWord *>(&mTestPattern.data()[0]),
 		static_cast<ULWord>(mTestPattern.size()));
 }
@@ -236,7 +250,7 @@ void AJAOutput::QueueVideoFrame(struct video_data *frame, size_t size)
 
 	VideoFrame vf;
 	vf.frame = *frame;
-	vf.frameNum = mVideoFrameCount;
+	vf.frameNum = mVideoWriteFrames;
 	vf.size = size;
 	vf.frame = *frame;
 
@@ -249,9 +263,7 @@ void AJAOutput::QueueVideoFrame(struct video_data *frame, size_t size)
 	copy_video_data(frame, &vf.frame, size);
 
 	mVideoQueue->push_back(vf);
-
-	if (++mVideoFrameCount > UINT64_MAX)
-		mVideoFrameCount = 0;
+    mVideoQueueFrames++;
 
 #ifdef AJA_OUTPUT_PROFILE
 	blog(LOG_DEBUG, "Video Q: %zu", mVideoQueue->size());
@@ -277,6 +289,7 @@ void AJAOutput::QueueAudioFrames(struct audio_data *frames, size_t size)
 	copy_audio_data(frames, &af.frames, size);
 
 	mAudioQueue->push_back(af);
+    mAudioQueueSamples += size / (kDefaultAudioChannels * kDefaultAudioSampleSize);
 
 #ifdef AJA_OUTPUT_PROFILE
 	blog(LOG_DEBUG, "Audio Q: %zu", mAudioQueue->size());
@@ -301,12 +314,6 @@ void AJAOutput::ClearAudioQueue()
 		free_audio_data(&af.frames);
 		mAudioQueue->pop_front();
 	}
-}
-
-bool AJAOutput::PrerolledAudio()
-{
-	return (mAudioWriteCursor && mAudioPrerollBytes &&
-		mAudioWriteCursor >= mAudioPrerollBytes);
 }
 
 bool AJAOutput::HaveEnoughAudio(size_t needAudioSize)
@@ -341,78 +348,83 @@ size_t AJAOutput::AudioQueueSize()
 // lock audio queue before calling
 void AJAOutput::DMAAudioFromQueue(NTV2AudioSystem audioSys)
 {
-	bool restartAudio = false;
-	auto &audioFront = mAudioQueue->front();
-	size_t samplesLeft = audioFront.size;
+	AudioFrames &af = mAudioQueue->front();
+	size_t sizeLeft = af.size - af.offset;
 
-	if (mAudioWriteCursor < mAudioPlayCursor &&
-	    mAudioWriteCursor + samplesLeft > mAudioPlayCursor) {
+    if (!mFirstAudioTS)
+        mFirstAudioTS = af.frames.timestamp;
+    mLastAudioTS = af.frames.timestamp;
 
-		blog(LOG_DEBUG,
-		     "AJAOutput::DMAAudioFromQueue: Writing %zu bytes at write cursor %d will overtake play cursor at %d",
-		     samplesLeft, mAudioWriteCursor, mAudioPlayCursor);
+    if (sizeLeft == 0) {
+        free_audio_data(&af.frames);
+        mAudioQueue->pop_front();
+        return;
+    }
 
-		restartAudio = true;
-	}
+    // Get audio play cursor
+    mCard->ReadAudioLastOut(mAudioPlayCursor, audioSys);
 
-	size_t index = 0;
-	while (samplesLeft > 0) {
-		AudioFrames &af = mAudioQueue->front();
+    // Calculate audio delay
+    uint32_t audioPlaySamples = 0;
 
-		if (!mFirstAudioTS)
-			mFirstAudioTS = af.frames.timestamp;
+    if (mAudioPlayCursor <= mAudioWriteCursor) {
+        audioPlaySamples = (mAudioWriteCursor - mAudioPlayCursor) /
+            (kDefaultAudioChannels * kDefaultAudioSampleSize);
+    }
+    else {
+        audioPlaySamples = (mAudioWrapAddress - mAudioPlayCursor + mAudioWriteCursor) /
+            (kDefaultAudioChannels * kDefaultAudioSampleSize);
+    }
+    mAudioDelay = 1000000 * (int64_t)audioPlaySamples / mAudioRate;
 
-		mLastAudioTS = af.frames.timestamp;
+    // Adjust audio sync when requested
+    if (mAudioAdjust != 0) {
+        if (mAudioAdjust > 0) {
+            // Throw away some samples to resync audio
+            uint32_t adjustSamples = (uint32_t)mAudioAdjust * mAudioRate / 1000000;
+            uint32_t adjustSize = adjustSamples * kDefaultAudioSampleSize * kDefaultAudioChannels;
+            if (adjustSize <= sizeLeft) {
+                af.offset += adjustSize;
+                sizeLeft -= adjustSize;
+                mAudioAdjust = 0;
+                blog(LOG_DEBUG,
+                     "AJAOutput::DMAAudioFromQueue: Drop %d audio samples", adjustSamples);
+            } else {
+                uint32_t samples = sizeLeft / (kDefaultAudioSampleSize * kDefaultAudioChannels);
+                af.offset += sizeLeft;
+                sizeLeft = 0;
+                adjustSamples -= samples;
+                mAudioAdjust = adjustSamples * 1000000 / mAudioRate;
+                blog(LOG_DEBUG,
+                     "AJAOutput::DMAAudioFromQueue: Drop %d audio samples", samples);
+            }
+        } else {
+            // Add some silence to resync audio
+            uint32_t adjustSamples = (uint32_t)(-mAudioAdjust) * mAudioRate / 1000000;
+            uint32_t adjustSize = adjustSamples * kDefaultAudioSampleSize * kDefaultAudioChannels;
+            uint8_t* silentBuffer = new uint8_t[adjustSize];
+            memset(silentBuffer, 0, adjustSize);
+            dma_audio_samples(audioSys, (uint32_t*)silentBuffer, adjustSize);
+            delete [] silentBuffer;
+            mAudioAdjust = 0;
+            blog(LOG_DEBUG,
+                 "AJAOutput::DMAAudioFromQueue: Add %d audio samples", adjustSamples);
+        }
+    }
 
-		if (af.frames.data[0] && af.size > 0) {
-			size_t available = af.size - af.offset;
-			if (available < samplesLeft) {
-				dma_audio_samples(audioSys,
-						  (uint32_t *)&af.frames
-							  .data[0][af.offset],
-						  available);
-				free_audio_data(&af.frames);
-				mAudioQueue->pop_front();
-				index += available;
-				samplesLeft -= available;
-			} else {
-				dma_audio_samples(audioSys,
-						  (uint32_t *)&af.frames
-							  .data[0][af.offset],
-						  samplesLeft);
-				af.offset += samplesLeft;
-				index += samplesLeft;
-				samplesLeft -= samplesLeft;
-				if (af.offset == af.size) {
-					free_audio_data(&af.frames);
-					mAudioQueue->pop_front();
-				}
-			}
-		}
-	}
+    // Write audio to the hardware ring
+    if (af.frames.data[0] && sizeLeft > 0) {
+        dma_audio_samples(audioSys,
+                          (uint32_t *)&af.frames.data[0][af.offset],
+                          sizeLeft);
+        af.offset += sizeLeft;
+    }
 
-	if (restartAudio) {
-		blog(LOG_DEBUG,
-		     "AJAOutput::DMAAudioFromQueue: Restarting AJA audio system output");
-
-		if (mAudioPrerollSec < 2.0) {
-			mAudioPrerollSec += 0.0333;
-			blog(LOG_DEBUG,
-			     "AJAOutput::DMAAudioFromQueue: Audio pre-roll is now %f seconds",
-			     mAudioPrerollSec);
-		}
-
-		double prerollSamples =
-			mAudioPrerollSec * (double)mOutputProps.audioSampleRate;
-
-		mAudioPrerollBytes = (uint32_t)prerollSamples *
-				     (uint32_t)mOutputProps.AudioSize();
-
-		mCard->StopAudioOutput(audioSys);
-		mAudioPlayCursor = 0;
-		mAudioWriteCursor = 0;
-		mAudioStarted = false;
-	}
+    // Free the audio buffer
+    if (af.offset == af.size) {
+        free_audio_data(&af.frames);
+        mAudioQueue->pop_front();
+    }
 }
 
 // lock video queue before calling
@@ -420,28 +432,28 @@ void AJAOutput::DMAVideoFromQueue()
 {
 	auto &vf = mVideoQueue->front();
 	auto data = vf.frame.data[0];
-	auto outputChannel = mOutputProps.Channel();
-
-	increment_card_frame();
-
-	auto result = mCard->DMAWriteFrame(mCurrentCardFrame,
-					   reinterpret_cast<ULWord *>(data),
-					   (ULWord)vf.size);
-	if (!result)
-		blog(LOG_DEBUG,
-		     "AJAOutput::DMAVideoFromQueue: Failed ot write video frame!");
-
-	result = mCard->SetOutputFrame(outputChannel, mCurrentCardFrame);
-	if (!result) {
-		blog(LOG_DEBUG,
-		     "AJAOutput::DMAVideoFromQueue: Failed to set output frame index %d on card!",
-		     mCurrentCardFrame);
-	}
 
 	if (!mFirstVideoTS)
 		mFirstVideoTS = vf.frame.timestamp;
-
 	mLastVideoTS = vf.frame.timestamp;
+
+    // find the next buffer
+    uint32_t writeCardFrame = mWriteCardFrame + 1;
+    if (writeCardFrame > mLastCardFrame)
+        writeCardFrame = mFirstCardFrame;
+
+    // use the next buffer if available
+    if (writeCardFrame != mPlayCardFrame)
+        mWriteCardFrame = writeCardFrame;
+    
+    mVideoWriteFrames++;
+    
+	auto result = mCard->DMAWriteFrame(mWriteCardFrame,
+                                       reinterpret_cast<ULWord *>(data),
+                                       (ULWord)vf.size);
+	if (!result)
+		blog(LOG_DEBUG,
+		     "AJAOutput::DMAVideoFromQueue: Failed ot write video frame!");
 
 	free_video_frame(&vf.frame);
 	mVideoQueue->pop_front();
@@ -467,20 +479,42 @@ void AJAOutput::calculate_card_frame_indices(uint32_t numFrames,
 	    (mFirstCardFrame + numFrames) < totalCardFrames) {
 		// Reserve N framebuffers in card DRAM.
 		mNumCardFrames = numFrames;
-		mCurrentCardFrame = mFirstCardFrame;
-		mLastCardFrame = mCurrentCardFrame + numFrames;
+		mWriteCardFrame = mFirstCardFrame;
+		mLastCardFrame = mWriteCardFrame + numFrames;
 	} else {
 		// otherwise just grab 2 frames to ping-pong between
 		mNumCardFrames = 2;
-		mCurrentCardFrame = channelIndex * 2;
-		mLastCardFrame = mCurrentCardFrame + 2;
+		mWriteCardFrame = channelIndex * 2;
+		mLastCardFrame = mWriteCardFrame + 2;
 	}
 }
 
-void AJAOutput::increment_card_frame()
+uint32_t AJAOutput::get_frame_count()
 {
-	if (++mCurrentCardFrame > mLastCardFrame)
-		mCurrentCardFrame = mFirstCardFrame;
+    uint32_t frameCount = 0;
+    NTV2Channel channel = mOutputProps.Channel();
+    INTERRUPT_ENUMS interrupt = NTV2ChannelToOutputInterrupt(channel);
+    bool isProgressiveTransport = NTV2_IS_PROGRESSIVE_STANDARD(::GetNTV2StandardFromVideoFormat(mOutputProps.videoFormat));
+
+    if (isProgressiveTransport) {
+        mCard->GetInterruptCount(interrupt, frameCount);
+    } else {
+        uint32_t intCount;
+        uint32_t nextCount;
+        NTV2FieldID fieldID;
+         mCard->GetInterruptCount(interrupt, intCount);
+         mCard->GetOutputFieldID(channel, fieldID);
+         mCard->GetInterruptCount(interrupt, nextCount);
+        if (intCount != nextCount) {
+             mCard->GetInterruptCount(interrupt, intCount);
+             mCard->GetOutputFieldID(channel, fieldID);
+        }
+        if (fieldID == NTV2_FIELD1)
+            intCount--;
+        frameCount = intCount/2;
+    }
+
+    return frameCount;
 }
 
 // Perform DMA of audio samples to AJA card while taking into account wrapping around the
@@ -489,6 +523,8 @@ void AJAOutput::dma_audio_samples(NTV2AudioSystem audioSys, uint32_t *data,
 				  size_t size)
 {
 	bool result = false;
+
+    mAudioWriteSamples += size / (kDefaultAudioChannels * kDefaultAudioSampleSize);
 
 	if ((mAudioWriteCursor + size) > mAudioWrapAddress) {
 		const uint32_t remainingBuffer =
@@ -543,23 +579,6 @@ void AJAOutput::dma_audio_samples(NTV2AudioSystem audioSys, uint32_t *data,
 	}
 }
 
-void AJAOutput::adjust_initial_card_av_sync()
-{
-	const std::lock_guard<std::mutex> lock(mVideoLock);
-	for (size_t vdx = 0; vdx < mVideoQueue->size(); vdx++) {
-		auto &vf = mVideoQueue->front();
-		if (vf.frame.timestamp <= mLastAudioTS) {
-			blog(LOG_DEBUG,
-			     "AJAOutput::adjust_initial_card_av_sync: "
-			     "Pop video TS %lld (want audio TS %lld)",
-			     vf.frame.timestamp, mLastAudioTS);
-
-			free_video_frame(&vf.frame);
-			mVideoQueue->pop_front();
-		}
-	}
-}
-
 void AJAOutput::CreateThread(bool enable)
 {
 	const std::lock_guard<std::mutex> lock(mRunThreadLock);
@@ -610,71 +629,115 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 
 	const auto &audioSystem = props.AudioSystem();
 
-	uint64_t videoFrameCount = 0;
-
-	AJATimer videoTimer(AJATimerPrecisionNanoseconds);
-	AJATimer audioTimer(AJATimerPrecisionNanoseconds);
-
-	uint64_t videoFrameTimeNanos = ajaOutput->mFrameTimes.cardFrameTime;
-	if (ajaOutput->mFrameTimes.obsFrameTime >
-	    ajaOutput->mFrameTimes.cardFrameTime)
-		videoFrameTimeNanos = ajaOutput->mFrameTimes.obsFrameTime;
-
-	uint64_t audioFrameTimeNanos = (1000000000ULL / props.audioSampleRate);
-
-	audioTimer.Start();
+    uint64_t videoPlayLast = ajaOutput->get_frame_count();
+    uint32_t audioSyncCount = 0;
+    uint32_t videoSyncCount = 0;
+    uint32_t syncCountMax = 5;
+    int64_t audioSyncSum = 0;
+    int64_t videoSyncSum = 0;
 
 	// thread loop
 	while (ajaOutput->ThreadRunning()) {
-		// Audio Pre-roll
-		if (!ajaOutput->mAudioStarted && ajaOutput->PrerolledAudio()) {
+		// Wait for preroll
+        if (!ajaOutput->mAudioStarted &&
+            (ajaOutput->mAudioDelay > ajaOutput->mVideoDelay)) {
+            card->StartAudioOutput(audioSystem, false);
+			ajaOutput->mAudioStarted = true;
 			blog(LOG_DEBUG,
 			     "AJAOutput::OutputThread: Audio Preroll complete");
+        }
 
-			ajaOutput->adjust_initial_card_av_sync();
+        // Check if a vsync occurred
+        uint32_t frameCount = ajaOutput->get_frame_count();
+        if (frameCount > videoPlayLast) {
+            videoPlayLast = frameCount;
+            ajaOutput->mPlayCardFrame = ajaOutput->mPlayCardNext;
 
-			card->StartAudioOutput(audioSystem);
+            if (ajaOutput->mPlayCardFrame != ajaOutput->mWriteCardFrame)
+            {
+                uint32_t playCardNext = ajaOutput->mPlayCardFrame + 1;
+                if (playCardNext > ajaOutput->mLastCardFrame)
+                    playCardNext = ajaOutput->mFirstCardFrame;
 
-			ajaOutput->mAudioStarted = true;
+                if (playCardNext != ajaOutput->mWriteCardFrame)
+                {
+                    ajaOutput->mPlayCardNext = playCardNext;
+                    // Increment the play frame
+                    ajaOutput->mCard->SetOutputFrame(ajaOutput->mOutputProps.Channel(),
+                                                     ajaOutput->mPlayCardNext);
+                }
+                ajaOutput->mVideoPlayFrames++;
+            }
+        }
+        
+        // Audio DMA
+        {
+            const std::lock_guard<std::mutex> lock(ajaOutput->mAudioLock);
+            while (ajaOutput->AudioQueueSize() > 0) {
+                ajaOutput->DMAAudioFromQueue(audioSystem);
+            }
+        }
 
-			videoTimer.Start();
-		}
+        // Video DMA
+        {
+            const std::lock_guard<std::mutex> lock(ajaOutput->mVideoLock);
+            while (ajaOutput->VideoQueueSize() > 0) {
+                ajaOutput->DMAVideoFromQueue();
+            }
+        }
 
-		card->ReadAudioLastOut(ajaOutput->mAudioPlayCursor,
-				       audioSystem);
+        // Get current time and audio play cursor
+        int64_t curTime = (int64_t)os_gettime_ns();
+        card->ReadAudioLastOut(ajaOutput->mAudioPlayCursor, audioSystem);
 
-		// Audio DMA
-		{
-			const std::lock_guard<std::mutex> lock(
-				ajaOutput->mAudioLock);
-			if (audioTimer.ElapsedTime() >= audioFrameTimeNanos) {
-				if (ajaOutput->AudioQueueSize() > 0) {
-					ajaOutput->DMAAudioFromQueue(
-						audioSystem);
-				}
-				audioTimer.Start();
-			}
-		}
+        if (ajaOutput->mAudioStarted &&
+            ((curTime - ajaOutput->mLastStatTime) > kDefaultStatPeriod))
+        {
+            ajaOutput->mLastStatTime = curTime;
 
-		// Video DMA
-		{
-			const std::lock_guard<std::mutex> lock(
-				ajaOutput->mVideoLock);
-			if (videoTimer.ElapsedTime() >= videoFrameTimeNanos) {
-				if (ajaOutput->VideoQueueSize() > 0) {
-					ajaOutput->DMAVideoFromQueue();
-					videoFrameCount++;
-				}
-				videoTimer.Start();
-			}
-		}
-	}
+            // Calculate av sync delay
+            ajaOutput->mAudioVideoSync = ajaOutput->mAudioDelay - ajaOutput->mVideoDelay;
+
+            if (ajaOutput->mAudioVideoSync > kAudioSyncAdjust) {
+                audioSyncCount++;
+                audioSyncSum += ajaOutput->mAudioVideoSync;
+                if (audioSyncCount >= syncCountMax) {
+                    ajaOutput->mAudioAdjust = audioSyncSum / syncCountMax;
+                    audioSyncCount = 0;
+                    audioSyncSum = 0;
+                }
+            } else {
+                audioSyncCount = 0;
+                audioSyncSum = 0;
+            }
+            if (ajaOutput->mAudioVideoSync < -kAudioSyncAdjust) {
+                videoSyncCount++;
+                videoSyncSum += ajaOutput->mAudioVideoSync;
+                if (videoSyncCount >= syncCountMax) {
+                    ajaOutput->mAudioAdjust = videoSyncSum / syncCountMax;
+                    videoSyncCount = 0;
+                    videoSyncSum = 0;
+                }
+            } else {
+                videoSyncCount = 0;
+                videoSyncSum = 0;
+            }
+
+#ifdef AJA_OUTPUT_STATS
+            blog(LOG_DEBUG,
+                 "AJAOutput::OutputThread: vd %li  ad %li  avs %li",
+                 ajaOutput->mVideoDelay, ajaOutput->mAudioDelay, ajaOutput->mAudioVideoSync);
+#endif
+        }
+
+        os_sleep_ms(1);
+    }
 
 	ajaOutput->mAudioStarted = false;
 
 	blog(LOG_INFO,
 	     "AJAOutput::OutputThread: Thread stopped. Played %lld video frames",
-	     videoFrameCount);
+	     ajaOutput->mVideoQueueFrames);
 }
 
 void populate_output_device_list(obs_property_t *list)
@@ -1003,6 +1066,8 @@ static bool aja_output_start(void *data)
 						    ajaOutput->mOutputID)) {
 				card->SetVideoFormat(videoFormat, false, false,
 						     channel);
+                card->SetRegisterWriteMode(NTV2_REGWRITE_SYNCTOFRAME,
+                                           channel);
 				card->SetFrameBufferFormat(channel,
 							   pixelFormat);
 			}
@@ -1099,8 +1164,6 @@ static void aja_output_stop(void *data, uint64_t ts)
 	obs_output_end_data_capture(ajaOutput->GetOBSOutput());
 
 	card->StopAudioOutput(audioSystem);
-
-	ajaOutput->mVideoFrameCount = 0;
 
 	blog(LOG_INFO, "AJA Output stopped.");
 }
