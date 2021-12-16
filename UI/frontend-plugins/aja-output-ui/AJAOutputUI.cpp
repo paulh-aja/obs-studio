@@ -167,3 +167,46 @@ void AJAOutputUI::PreviewOutputStateChanged(bool active)
 	ui->previewOutputButton->setChecked(active);
 	ui->previewOutputButton->setText(text);
 }
+
+// **********
+// Misc Props
+// **********
+static obs_properties_t *GetMiscProps(void *vp, obs_data_t *old_settings, obs_data_t *new_settings)
+{
+	obs_properties_t *props = obs_properties_create();
+	obs_property_t *deviceList = obs_properties_add_list(props,
+		kUIPropDevice.id, obs_module_text(kUIPropDevice.text),
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	obs_property_t *multiViewEnable = obs_properties_add_bool(props,
+		kUIPropMultiViewEnable.id, obs_module_text(kUIPropMultiViewEnable.text));
+	obs_property_t *multiViewAudioSource = obs_properties_add_list(props,
+		kUIPropMultiViewAudioSource.id, obs_module_text(kUIPropMultiViewAudioSource.text),
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+
+	// PopulateCardList(deviceList);
+	// PopulateQuadViewAudioSourceList(quadViewAudioSourceList);
+	// obs_property_set_modified_callback(deviceList, OnCardChanged);
+	// obs_property_set_modified_callback(quadViewEnableCheckbox, OnQuadViewEnabled);
+	return props;
+}
+
+void AJAOutputUI::MiscPropertiesChanged()
+{
+
+}
+
+void AJAOutputUI::SetupMiscPropertiesView()
+{
+	if (miscPropertiesView)
+		delete miscPropertiesView;
+	
+	obs_data_t *settings = obs_data_create();
+	OBSData data = load_settings(kMiscPropsFilename);
+	if (data) {
+		obs_data_apply(settings, data);
+	} else {
+		// TODO: apply defaults
+	}
+	miscPropertiesView = new OBSPropertiesView(settings, "aja_output_misc",
+		(PropertiesReloadCallback)GetMiscProps, 170);
+}

@@ -89,3 +89,15 @@ static const UIProperty kUIPropBuffering = {
 	obs_module_text("Buffering"),
 	"",
 };
+
+static const UIProperty kUIPropMultiViewEnable = {
+	"ui_prop_multi_view_enable",
+	obs_module_text("Enable Multi View"),
+	"",
+};
+
+static const UIProperty kUIPropMultiViewAudioSource = {
+	"ui_prop_multi_view_audio_source",
+	obs_module_text("Audio Source"),
+	"",
+};

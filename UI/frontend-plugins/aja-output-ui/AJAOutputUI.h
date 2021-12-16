@@ -10,6 +10,7 @@ class AJAOutputUI : public QDialog {
 private:
 	OBSPropertiesView *propertiesView;
 	OBSPropertiesView *previewPropertiesView;
+	OBSPropertiesView *miscPropertiesView;
 
 public slots:
 	void on_outputButton_clicked();
@@ -20,6 +21,7 @@ public slots:
 	void PreviewPropertiesChanged();
 	void PreviewOutputStateChanged(bool);
 
+	void MiscPropertiesChanged();
 public:
 	std::unique_ptr<Ui_Output> ui;
 	AJAOutputUI(QWidget *parent);
@@ -30,4 +32,5 @@ public:
 
 	void SetupPropertiesView();
 	void SetupPreviewPropertiesView();
+	void SetupMiscPropertiesView();
 };
