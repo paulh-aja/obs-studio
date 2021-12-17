@@ -92,7 +92,7 @@ OBSBasicProperties::OBSBasicProperties(QWidget *parent, OBSSource source_)
 	};
 
 	view = new OBSPropertiesView(
-		nd_settings.Get(), source,
+		nd_settings.Get(), source, nullptr,
 		(PropertiesReloadCallback)obs_source_properties,
 		(PropertiesUpdateCallback)handle_memory,
 		(PropertiesVisualUpdateCb)obs_source_update);

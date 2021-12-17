@@ -3,8 +3,11 @@
 
 #include "../../../plugins/aja/aja-ui-props.hpp"
 #include "../../../plugins/aja/aja-enums.hpp"
+#include "../../../plugins/aja/aja-card-manager.hpp"
 
+#include <ajantv2/includes/ntv2devicefeatures.h>
 #include <ajantv2/includes/ntv2enums.h>
+#include <ajantv2/includes/ntv2utils.h>
 
 #include <obs-module.h>
 #include <util/platform.h>
@@ -20,12 +23,14 @@ AJAOutputUI::AJAOutputUI(QWidget *parent) : QDialog(parent), ui(new Ui_Output)
 
 	propertiesView = nullptr;
 	previewPropertiesView = nullptr;
+	miscPropertiesView = nullptr;
 }
 
 void AJAOutputUI::ShowHideDialog()
 {
 	SetupPropertiesView();
 	SetupPreviewPropertiesView();
+	SetupMiscPropertiesView();
 
 	setVisible(!isVisible());
 }
@@ -57,8 +62,9 @@ void AJAOutputUI::SetupPropertiesView()
 	obs_data_set_string(settings, kUIPropAJAOutputID.id, kProgramOutputID);
 
 	propertiesView = new OBSPropertiesView(
-		settings, "aja_output",
-		(PropertiesReloadCallback)obs_get_output_properties, 170);
+		settings, nullptr, "aja_output",
+		(PropertiesReloadCallback)obs_get_output_properties,
+		nullptr, nullptr, 170);
 
 	ui->propertiesLayout->addWidget(propertiesView);
 	obs_data_release(settings);
@@ -108,8 +114,9 @@ void AJAOutputUI::SetupPreviewPropertiesView()
 	obs_data_set_string(settings, kUIPropAJAOutputID.id, kPreviewOutputID);
 
 	previewPropertiesView = new OBSPropertiesView(
-		settings, "aja_output",
-		(PropertiesReloadCallback)obs_get_output_properties, 170);
+		settings, nullptr, "aja_output",
+		(PropertiesReloadCallback)obs_get_output_properties,
+		nullptr, nullptr, 170);
 
 	ui->previewPropertiesLayout->addWidget(previewPropertiesView);
 	obs_data_release(settings);
@@ -171,35 +178,141 @@ void AJAOutputUI::PreviewOutputStateChanged(bool active)
 // **********
 // Misc Props
 // **********
-static obs_properties_t *GetMiscProps(void *vp, obs_data_t *old_settings, obs_data_t *new_settings)
+static void populate_multi_view_audio_sources(obs_property_t *list, NTV2DeviceID id)
 {
+	obs_property_list_clear(list);
+	const QList<NTV2InputSource> kMultiViewAudioInputs = {
+			NTV2_INPUTSOURCE_SDI1,
+			NTV2_INPUTSOURCE_SDI2,
+			NTV2_INPUTSOURCE_SDI3,
+			NTV2_INPUTSOURCE_SDI4,
+			NTV2_INPUTSOURCE_HDMI1,
+		};
+	for (const auto& inp : kMultiViewAudioInputs) {
+		if (NTV2DeviceCanDoInputSource(id, inp)) {
+			std::string inputSourceStr = NTV2InputSourceToString(inp, true);
+			obs_property_list_add_int(list, inputSourceStr.c_str(), (long long)inp);
+		}
+	}
+}
+
+bool on_card_changed(void *data, obs_properties_t *props,
+			       obs_property_t *list, obs_data_t *settings)
+{
+	aja::CardManager *cm = (aja::CardManager*)data;
+	if (!cm)
+		return false;
+	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
+	if (!cardID)
+		return false;
+	auto cardEntry = cm->GetCardEntry(cardID);
+	if (!cardEntry)
+		return false;
+
+	NTV2DeviceID deviceID = cardEntry->GetDeviceID();
+	bool enableMultiViewUI = NTV2DeviceCanDoHDMIMultiView(deviceID);
+	obs_property_t *multiViewCheckbox = obs_properties_get(props, kUIPropMultiViewEnable.id);
+	obs_property_t *multiViewAudioSource = obs_properties_get(props, kUIPropMultiViewAudioSource.id);
+	populate_multi_view_audio_sources(multiViewAudioSource, deviceID);
+	// obs_property_set_enabled(multiViewCheckbox, enableMultiViewUI);
+	// obs_property_set_enabled(multiViewAudioSource, enableMultiViewUI);
+
+	return true;
+}
+
+bool on_multi_view_enable(obs_properties_t *props, obs_property_t *list,
+			      obs_data_t *settings)
+{
+	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
+	if (!cardID)
+		return false;
+	// auto &cardManager = aja::CardManager::Instance();
+	// cardManager.EnumerateCards();
+	// auto cardEntry = cardManager.GetCardEntry(cardID);
+	// if (!cardEntry)
+	// 		return false;
+	// CNTV2Card *card = cardEntry->GetCard();
+	// if (!card)
+	// 		return false;
+
+	// NTV2DeviceID deviceId = card->GetDeviceID();
+	// ULWord numMultiViewCapableChannels = 0;
+	// ULWord numVideoChannels = NTV2DeviceGetNumVideoChannels(deviceId);
+	// for (ULWord i = 0; i < numVideoChannels; i++)
+	// {
+	// 		NTV2VideoFormat vf = NTV2_FORMAT_UNKNOWN;
+	// 		card->GetVideoFormat(vf, GetNTV2ChannelForIndex(i));
+	// 		if (NTV2_IS_SD_VIDEO_FORMAT(vf) ||
+	// 				NTV2_IS_HD_VIDEO_FORMAT(vf) ||
+	// 				NTV2_IS_2K_VIDEO_FORMAT(vf)) {
+	// 				numMultiViewCapableChannels++;
+	// 		}
+	// }
+	// if (NTV2DeviceGetNumHDMIVideoOutputs(deviceId) > 0 &&
+	// 		numMultiViewCapableChannels == numVideoChannels) {
+
+	// }
+	return true;
+}
+
+static obs_properties_t *get_misc_props(void *vp)
+{
+	AJAOutputUI* outputUI = (AJAOutputUI*)vp;
+	if (!outputUI)
+		return nullptr;
+	aja::CardManager* cm = outputUI->GetCardManager();
+	if (!cm)
+		return nullptr;
+
 	obs_properties_t *props = obs_properties_create();
 	obs_property_t *deviceList = obs_properties_add_list(props,
 		kUIPropDevice.id, obs_module_text(kUIPropDevice.text),
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_t *multiViewEnable = obs_properties_add_bool(props,
 		kUIPropMultiViewEnable.id, obs_module_text(kUIPropMultiViewEnable.text));
-	obs_property_t *multiViewAudioSource = obs_properties_add_list(props,
+	obs_property_t *multiViewAudioSources = obs_properties_add_list(props,
 		kUIPropMultiViewAudioSource.id, obs_module_text(kUIPropMultiViewAudioSource.text),
 		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 
-	// PopulateCardList(deviceList);
-	// PopulateQuadViewAudioSourceList(quadViewAudioSourceList);
-	// obs_property_set_modified_callback(deviceList, OnCardChanged);
-	// obs_property_set_modified_callback(quadViewEnableCheckbox, OnQuadViewEnabled);
+	obs_property_list_clear(deviceList);
+	obs_property_list_clear(multiViewAudioSources);
+	
+	NTV2DeviceID firstDeviceID = DEVICE_ID_NOTFOUND;
+	for (const auto& iter : *cm) {
+		if (!iter.second)
+			continue;
+		if (firstDeviceID == DEVICE_ID_NOTFOUND)
+			firstDeviceID = iter.second->GetDeviceID();
+		obs_property_list_add_string(
+			deviceList, iter.second->GetDisplayName().c_str(),
+			iter.second->GetCardID().c_str());
+	}
+	populate_multi_view_audio_sources(multiViewAudioSources, firstDeviceID);
+	obs_property_set_modified_callback2(deviceList, on_card_changed, (void*)cm);
+	obs_property_set_modified_callback(multiViewEnable, on_multi_view_enable);
 	return props;
 }
 
 void AJAOutputUI::MiscPropertiesChanged()
 {
+	SaveSettings(kMiscPropsFilename, miscPropertiesView->GetSettings());
+}
 
+void AJAOutputUI::SetCardManager(aja::CardManager* cm)
+{
+	cardManager = cm;
+}
+
+aja::CardManager* AJAOutputUI::GetCardManager()
+{
+	return cardManager;
 }
 
 void AJAOutputUI::SetupMiscPropertiesView()
 {
 	if (miscPropertiesView)
 		delete miscPropertiesView;
-	
+
 	obs_data_t *settings = obs_data_create();
 	OBSData data = load_settings(kMiscPropsFilename);
 	if (data) {
@@ -207,6 +320,13 @@ void AJAOutputUI::SetupMiscPropertiesView()
 	} else {
 		// TODO: apply defaults
 	}
-	miscPropertiesView = new OBSPropertiesView(settings, "aja_output_misc",
-		(PropertiesReloadCallback)GetMiscProps, 170);
+
+	miscPropertiesView = new OBSPropertiesView(
+		settings, this, "aja_output",
+		(PropertiesReloadCallback)get_misc_props,
+		nullptr, nullptr, 170);
+
+	ui->miscPropertiesLayout->addWidget(miscPropertiesView);
+	obs_data_release(settings);
+	connect(miscPropertiesView, SIGNAL(Changed()), this, SLOT(MiscPropertiesChanged()));
 }

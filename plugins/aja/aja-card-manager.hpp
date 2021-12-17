@@ -87,6 +87,8 @@ public:
 	size_t NumCardEntries() const;
 	const CardEntryPtr GetCardEntry(const std::string &cardID) const;
 	const CardEntries &GetCardEntries() const;
+	const CardEntries::iterator begin();
+	const CardEntries::iterator end();
 
 private:
 	CardManager() = default;

@@ -275,7 +275,7 @@ void OBSBasicFilters::UpdatePropertiesView(int row, bool async)
 	};
 
 	view = new OBSPropertiesView(
-		settings.Get(), filter,
+		settings.Get(), filter, nullptr,
 		(PropertiesReloadCallback)obs_source_properties,
 		(PropertiesUpdateCallback)FilterChangeUndoRedo,
 		(PropertiesVisualUpdateCb)disabled_undo);

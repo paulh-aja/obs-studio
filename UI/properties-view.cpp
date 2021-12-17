@@ -174,7 +174,8 @@ void OBSPropertiesView::GetScrollPos(int &h, int &v)
 		v = scroll->value();
 }
 
-OBSPropertiesView::OBSPropertiesView(OBSData settings_, void *obj_,
+OBSPropertiesView::OBSPropertiesView(OBSData settings_,
+				     void *obj_, const char *type_,
 				     PropertiesReloadCallback reloadCallback,
 				     PropertiesUpdateCallback callback_,
 				     PropertiesVisualUpdateCb cb_, int minSize_)
@@ -182,23 +183,10 @@ OBSPropertiesView::OBSPropertiesView(OBSData settings_, void *obj_,
 	  properties(nullptr, obs_properties_destroy),
 	  settings(settings_),
 	  obj(obj_),
+	  type(type_),
 	  reloadCallback(reloadCallback),
 	  callback(callback_),
 	  cb(cb_),
-	  minSize(minSize_)
-{
-	setFrameShape(QFrame::NoFrame);
-	ReloadProperties();
-}
-
-OBSPropertiesView::OBSPropertiesView(OBSData settings_, const char *type_,
-				     PropertiesReloadCallback reloadCallback_,
-				     int minSize_)
-	: VScrollArea(nullptr),
-	  properties(nullptr, obs_properties_destroy),
-	  settings(settings_),
-	  type(type_),
-	  reloadCallback(reloadCallback_),
 	  minSize(minSize_)
 {
 	setFrameShape(QFrame::NoFrame);

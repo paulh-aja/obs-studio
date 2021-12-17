@@ -1844,8 +1844,9 @@ OBSBasicSettings::CreateEncoderPropertyView(const char *encoder,
 	}
 
 	view = new OBSPropertiesView(
-		settings.Get(), encoder,
-		(PropertiesReloadCallback)obs_get_encoder_properties, 170);
+		settings.Get(), nullptr, encoder,
+		(PropertiesReloadCallback)obs_get_encoder_properties,
+		nullptr, nullptr, 170);
 	view->setFrameShape(QFrame::StyledPanel);
 	view->setProperty("changed", QVariant(changed));
 	QObject::connect(view, SIGNAL(Changed()), this, SLOT(OutputsChanged()));

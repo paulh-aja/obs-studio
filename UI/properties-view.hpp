@@ -152,13 +152,11 @@ signals:
 	void PropertiesRefreshed();
 
 public:
-	OBSPropertiesView(OBSData settings, void *obj,
+	OBSPropertiesView(OBSData settings,
+			  void *obj, const char *type,
 			  PropertiesReloadCallback reloadCallback,
-			  PropertiesUpdateCallback callback,
+			  PropertiesUpdateCallback callback = nullptr,
 			  PropertiesVisualUpdateCb cb = nullptr,
-			  int minSize = 0);
-	OBSPropertiesView(OBSData settings, const char *type,
-			  PropertiesReloadCallback reloadCallback,
 			  int minSize = 0);
 
 	inline obs_data_t *GetSettings() const { return settings; }

@@ -37,8 +37,9 @@ void DecklinkOutputUI::SetupPropertiesView()
 		obs_data_apply(settings, data);
 
 	propertiesView = new OBSPropertiesView(
-		settings, "decklink_output",
-		(PropertiesReloadCallback)obs_get_output_properties, 170);
+		settings, nullptr, "decklink_output",
+		(PropertiesReloadCallback)obs_get_output_properties,
+		nullptr, nullptr, 170);
 
 	ui->propertiesLayout->addWidget(propertiesView);
 	obs_data_release(settings);
@@ -74,8 +75,9 @@ void DecklinkOutputUI::SetupPreviewPropertiesView()
 		obs_data_apply(settings, data);
 
 	previewPropertiesView = new OBSPropertiesView(
-		settings, "decklink_output",
-		(PropertiesReloadCallback)obs_get_output_properties, 170);
+		settings, nullptr, "decklink_output",
+		(PropertiesReloadCallback)obs_get_output_properties,
+		nullptr, nullptr, 170);
 
 	ui->previewPropertiesLayout->addWidget(previewPropertiesView);
 	obs_data_release(settings);

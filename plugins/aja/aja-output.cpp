@@ -780,28 +780,30 @@ bool aja_output_device_changed(void *data, obs_properties_t *props,
 	populate_output_device_list(list);
 
 	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
-
-	size_t itemCount = obs_property_list_item_count(list);
-	bool itemFound = false;
-
-	for (size_t i = 0; i < itemCount; i++) {
-		const char *itemCardID = obs_property_list_item_string(list, i);
-		if (strcmp(cardID, itemCardID) == 0) {
-			itemFound = true;
-			break;
-		}
-	}
-
-	if (!itemFound) {
-		obs_property_list_insert_string(list, 0, cardID, cardID);
-		obs_property_list_item_disable(list, 0, true);
-		return true;
-	}
-
-	if (!cardID) {
-		blog(LOG_ERROR, "aja_output_device_changed: Card ID is null!");
+	if (!cardID)
 		return false;
-	}
+
+	// size_t itemCount = obs_property_list_item_count(list);
+	// bool itemFound = false;
+
+	// // for (size_t i = 0; i < itemCount; i++) {
+	// // 	const char *itemCardID = obs_property_list_item_string(list, i);
+	// // 	if (strcmp(cardID, itemCardID) == 0) {
+	// // 		itemFound = true;
+	// // 		break;
+	// // 	}
+	// // }
+
+	// // // if (!itemFound) {
+	// // // 	obs_property_list_insert_string(list, 0, cardID, cardID);
+	// // // 	obs_property_list_item_disable(list, 0, true);
+	// // // 	return true;
+	// // // }
+
+	// // // if (!cardID) {
+	// // // 	blog(LOG_ERROR, "aja_output_device_changed: Card ID is null!");
+	// // // 	return false;
+	// // // }
 
 	const char *outputID =
 		obs_data_get_string(settings, kUIPropAJAOutputID.id);
