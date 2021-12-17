@@ -45,6 +45,7 @@ set(aja-output-ui_HEADERS
 	AJAOutputUI.h
 	aja-ui-main.h
 	../../../plugins/aja/aja-ui-props.hpp
+	../../../plugins/aja/aja-card-manager.hpp
 	../../../plugins/aja/aja-enums.hpp)
 
 set(aja-output-ui_SOURCES
@@ -57,7 +58,9 @@ set(aja-output-ui_SOURCES
 	../../combobox-ignorewheel.cpp
 	../../spinbox-ignorewheel.cpp
 	AJAOutputUI.cpp
-	aja-ui-main.cpp)
+	aja-ui-main.cpp
+	../../../plugins/aja/aja-common.cpp
+	../../../plugins/aja/aja-card-manager.cpp)
 
 set(aja-output-ui_UI
 	${aja-output-ui_UI}

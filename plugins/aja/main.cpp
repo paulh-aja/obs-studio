@@ -22,6 +22,8 @@ bool obs_module_load(void)
 	auto numDevices = scanner.GetNumDevices();
 
 	if (numDevices == 0) {
+		blog(LOG_WARNING,
+			"No AJA devices found, skipping loading AJA UI plugin");
 		return false;
 	}
 
@@ -34,6 +36,22 @@ bool obs_module_load(void)
 	obs_register_output(&aja_output_info);
 
 	return true;
+}
+
+void obs_module_post_load(void)
+{
+	struct calldata params = {0};
+	auto cardManager = &aja::CardManager::Instance();
+	auto num = cardManager->NumCardEntries();
+	blog(LOG_WARNING,
+		"NUM CARDS: %lu", num);
+
+	calldata_set_ptr(&params, "card_manager",
+		(void *)cardManager);
+	auto signal_handler = obs_get_signal_handler();
+	signal_handler_signal(signal_handler,
+			"aja_loaded", &params);
+	calldata_free(&params);
 }
 
 void obs_module_unload(void)
