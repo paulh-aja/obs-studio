@@ -312,26 +312,27 @@ static void OBSEvent(enum obs_frontend_event event, void *)
 
 static void aja_loaded(void *data, calldata_t *calldata)
 {
-       aja::CardManager *cardManager = nullptr;
-       calldata_get_ptr(calldata, "card_manager", &cardManager);
+	static aja::CardManager *cardManager = nullptr;
+	calldata_get_ptr(calldata, "card_manager", &cardManager);
 
-       auto num = cardManager->NumCardEntries();
+	auto num = cardManager->NumCardEntries();
 
-       blog(LOG_WARNING,
-            "manager: %lu", cardManager);
+	blog(LOG_WARNING,
+		"manager: %lu", cardManager);
+	blog(LOG_WARNING,
+		"NUM CARDS: %lu", num);
 
-       blog(LOG_WARNING,
-            "NUM CARDS: %lu", num);
+	if (doUI)
+		doUI->SetCardManager(cardManager);
 }
 
 bool obs_module_load(void)
 {
 	CNTV2DeviceScanner scanner;
 	auto numDevices = scanner.GetNumDevices();
-
 	if (numDevices == 0) {
 		blog(LOG_WARNING,
-			"No AJA devices found, skipping loading AJA plugin");
+			"No AJA devices found, skipping loading AJA UI plugin");
 		return false;
 	}
 

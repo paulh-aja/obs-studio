@@ -98,6 +98,6 @@ static const UIProperty kUIPropMultiViewEnable = {
 
 static const UIProperty kUIPropMultiViewAudioSource = {
 	"ui_prop_multi_view_audio_source",
-	obs_module_text("Audio Source"),
+	obs_module_text("Multi View Audio Source"),
 	"",
 };

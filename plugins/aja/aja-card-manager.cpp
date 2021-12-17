@@ -605,4 +605,16 @@ const CardEntries &CardManager::GetCardEntries() const
 	return mCardEntries;
 }
 
+const CardEntries::iterator CardManager::begin()
+{
+	const std::lock_guard<std::mutex> lock(mMutex);
+	return mCardEntries.begin();
+}
+
+const CardEntries::iterator CardManager::end()
+{
+	const std::lock_guard<std::mutex> lock(mMutex);
+	return mCardEntries.end();
+}
+
 } // aja
