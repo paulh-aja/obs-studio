@@ -17,12 +17,12 @@
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("aja-output-ui", "en-US")
 
-AJAOutputUI *doUI;
+static aja::CardManager *cardManager;
+static AJAOutputUI *ajaOutputUI = nullptr;
+static obs_output_t *output = nullptr;
 
 bool main_output_running = false;
 bool preview_output_running = false;
-
-obs_output_t *output;
 
 struct preview_output {
 	bool enabled;
@@ -61,7 +61,7 @@ void output_stop()
 	obs_output_stop(output);
 	obs_output_release(output);
 	main_output_running = false;
-	doUI->OutputStateChanged(false);
+	ajaOutputUI->OutputStateChanged(false);
 }
 
 void output_start()
@@ -77,7 +77,7 @@ void output_start()
 
 		main_output_running = started;
 
-		doUI->OutputStateChanged(started);
+		ajaOutputUI->OutputStateChanged(started);
 
 		if (!started)
 			output_stop();
@@ -114,7 +114,7 @@ void preview_output_stop()
 	video_output_close(context.video_queue);
 
 	preview_output_running = false;
-	doUI->PreviewOutputStateChanged(false);
+	ajaOutputUI->PreviewOutputStateChanged(false);
 }
 
 void preview_output_start()
@@ -170,7 +170,7 @@ void preview_output_start()
 		obs_data_release(settings);
 
 		preview_output_running = started;
-		doUI->PreviewOutputStateChanged(started);
+		ajaOutputUI->PreviewOutputStateChanged(started);
 
 		if (!started)
 			preview_output_stop();
@@ -279,10 +279,10 @@ void addOutputUI(void)
 	QMainWindow *window = (QMainWindow *)obs_frontend_get_main_window();
 
 	obs_frontend_push_ui_translation(obs_module_get_string);
-	doUI = new AJAOutputUI(window);
+	ajaOutputUI = new AJAOutputUI(window);
 	obs_frontend_pop_ui_translation();
 
-	auto cb = []() { doUI->ShowHideDialog(); };
+	auto cb = []() { ajaOutputUI->ShowHideDialog(); };
 
 	action->connect(action, &QAction::triggered, cb);
 }
@@ -312,18 +312,9 @@ static void OBSEvent(enum obs_frontend_event event, void *)
 
 static void aja_loaded(void *data, calldata_t *calldata)
 {
-	static aja::CardManager *cardManager = nullptr;
+	// Receive CardManager pointer from the main AJA plugin
 	calldata_get_ptr(calldata, "card_manager", &cardManager);
-
-	auto num = cardManager->NumCardEntries();
-
-	blog(LOG_WARNING,
-		"manager: %lu", cardManager);
-	blog(LOG_WARNING,
-		"NUM CARDS: %lu", num);
-
-	if (doUI)
-		doUI->SetCardManager(cardManager);
+	ajaOutputUI->SetCardManager(cardManager);
 }
 
 bool obs_module_load(void)
@@ -332,13 +323,14 @@ bool obs_module_load(void)
 	auto numDevices = scanner.GetNumDevices();
 	if (numDevices == 0) {
 		blog(LOG_WARNING,
-			"No AJA devices found, skipping loading AJA UI plugin");
+		     "No AJA devices found, skipping loading AJA UI plugin");
 		return false;
 	}
 
 	auto signal_handler = obs_get_signal_handler();
 	signal_handler_add(signal_handler, "void aja_loaded(ptr card_manager)");
-	signal_handler_connect(signal_handler, "aja_loaded", aja_loaded, nullptr);
+	signal_handler_connect(signal_handler, "aja_loaded", aja_loaded,
+			       nullptr);
 
 	addOutputUI();
 

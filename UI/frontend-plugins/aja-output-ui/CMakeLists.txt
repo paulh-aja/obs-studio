@@ -46,7 +46,9 @@ set(aja-output-ui_HEADERS
 	aja-ui-main.h
 	../../../plugins/aja/aja-ui-props.hpp
 	../../../plugins/aja/aja-card-manager.hpp
-	../../../plugins/aja/aja-enums.hpp)
+	../../../plugins/aja/aja-enums.hpp
+	# ../../../plugins/aja/aja-routing.hpp
+	)
 
 set(aja-output-ui_SOURCES
 	${aja-output-ui_SOURCES}
@@ -60,7 +62,9 @@ set(aja-output-ui_SOURCES
 	AJAOutputUI.cpp
 	aja-ui-main.cpp
 	../../../plugins/aja/aja-common.cpp
-	../../../plugins/aja/aja-card-manager.cpp)
+	../../../plugins/aja/aja-card-manager.cpp
+	# ../../../plugins/aja/aja-routing.cpp
+	)
 
 set(aja-output-ui_UI
 	${aja-output-ui_UI}

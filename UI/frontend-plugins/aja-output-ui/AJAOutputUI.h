@@ -15,7 +15,7 @@ private:
 	OBSPropertiesView *propertiesView;
 	OBSPropertiesView *previewPropertiesView;
 	OBSPropertiesView *miscPropertiesView;
-	aja::CardManager* cardManager;
+	aja::CardManager *cardManager;
 public slots:
 	void on_outputButton_clicked();
 	void PropertiesChanged();
@@ -26,13 +26,14 @@ public slots:
 	void PreviewOutputStateChanged(bool);
 
 	void MiscPropertiesChanged();
+
 public:
 	std::unique_ptr<Ui_Output> ui;
 	AJAOutputUI(QWidget *parent);
-	
-	void SetCardManager(aja::CardManager* cm);
-	aja::CardManager* GetCardManager();
-	
+
+	void SetCardManager(aja::CardManager *cm);
+	aja::CardManager *GetCardManager();
+
 	void ShowHideDialog();
 	void SaveSettings(const char *filename, obs_data_t *settings);
 	void SetupPropertiesView();
