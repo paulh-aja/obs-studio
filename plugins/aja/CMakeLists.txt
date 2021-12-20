@@ -34,6 +34,7 @@ set(aja_SOURCES
 	aja-props.cpp
 	aja-routing.cpp
 	aja-source.cpp
+	aja-vpid-data.cpp
 	aja-widget-io.cpp)
 
 set(aja_HEADERS
@@ -45,6 +46,7 @@ set(aja_HEADERS
 	aja-props.hpp
 	aja-routing.hpp
 	aja-source.hpp
+	aja-vpid-data.hpp
 	aja-widget-io.hpp)
 
 # macOS

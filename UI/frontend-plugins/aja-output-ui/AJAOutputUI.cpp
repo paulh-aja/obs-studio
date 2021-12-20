@@ -4,8 +4,9 @@
 #include "../../../plugins/aja/aja-ui-props.hpp"
 #include "../../../plugins/aja/aja-enums.hpp"
 #include "../../../plugins/aja/aja-card-manager.hpp"
-// #include "../../../plugins/aja/aja-routing.hpp"
+#include "../../../plugins/aja/aja-routing.hpp"
 
+#include <ajantv2/includes/ntv2card.h>
 #include <ajantv2/includes/ntv2devicefeatures.h>
 #include <ajantv2/includes/ntv2enums.h>
 #include <ajantv2/includes/ntv2utils.h>
@@ -199,13 +200,13 @@ static void populate_multi_view_audio_sources(obs_property_t *list,
 bool on_card_changed(void *data, obs_properties_t *props, obs_property_t *list,
 		     obs_data_t *settings)
 {
-	aja::CardManager *cm = (aja::CardManager *)data;
-	if (!cm)
-		return false;
 	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
 	if (!cardID)
 		return false;
-	auto cardEntry = cm->GetCardEntry(cardID);
+	aja::CardManager *cardManager = (aja::CardManager *)data;
+	if (!cardManager)
+		return false;
+	auto cardEntry = cardManager->GetCardEntry(cardID);
 	if (!cardEntry)
 		return false;
 
@@ -222,48 +223,39 @@ bool on_card_changed(void *data, obs_properties_t *props, obs_property_t *list,
 	return true;
 }
 
-bool on_multi_view_enable(obs_properties_t *props, obs_property_t *list,
+bool on_multi_view_enable(void *data, obs_properties_t *props, obs_property_t *list,
 			  obs_data_t *settings)
 {
+	const bool multiViewEnabled = obs_data_get_bool(settings, kUIPropMultiViewEnable.id);
+	const int audioSource = obs_data_get_int(settings, kUIPropMultiViewAudioSource.id);
 	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
 	if (!cardID)
 		return false;
+
+	aja::CardManager *cardManager = (aja::CardManager *)data;
+	if (!cardManager)
+		return false;
+	CNTV2Card *card = cardManager->GetCard(cardID);
+	if (!card)
+		return false;
+
 	std::ostringstream oss;
 	for (int i = 0; i < 4; i++) {
 		std::string datastream = std::to_string(i);
 		oss << "sdi[" << datastream << "][0]->hdmi[0][" << datastream
 		    << "];";
 	}
-	NTV2XptConnections cnx;
-	// if (Routing::ParseRouteString(oss.str(), cnx)) {
-	// }
 
-	// auto &cardManager = aja::CardManager::Instance();
-	// cardManager.EnumerateCards();
-	// auto cardEntry = cardManager.GetCardEntry(cardID);
-	// if (!cardEntry)
-	// 		return false;
-	// CNTV2Card *card = cardEntry->GetCard();
-	// if (!card)
-	// 		return false;
-
-	// NTV2DeviceID deviceId = card->GetDeviceID();
-	// ULWord numMultiViewCapableChannels = 0;
-	// ULWord numVideoChannels = NTV2DeviceGetNumVideoChannels(deviceId);
-	// for (ULWord i = 0; i < numVideoChannels; i++)
-	// {
-	// 		NTV2VideoFormat vf = NTV2_FORMAT_UNKNOWN;
-	// 		card->GetVideoFormat(vf, GetNTV2ChannelForIndex(i));
-	// 		if (NTV2_IS_SD_VIDEO_FORMAT(vf) ||
-	// 				NTV2_IS_HD_VIDEO_FORMAT(vf) ||
-	// 				NTV2_IS_2K_VIDEO_FORMAT(vf)) {
-	// 				numMultiViewCapableChannels++;
-	// 		}
-	// }
-	// if (NTV2DeviceGetNumHDMIVideoOutputs(deviceId) > 0 &&
-	// 		numMultiViewCapableChannels == numVideoChannels) {
-
-	// }
+	NTV2DeviceID deviceId = card->GetDeviceID();
+	if (NTV2DeviceCanDoHDMIMultiView(deviceId)) {
+		NTV2XptConnections cnx;
+		if (Routing::ParseRouteString(oss.str(), cnx)) {
+			if (multiViewEnabled)
+				card->ApplySignalRoute(cnx, false);
+			else
+				card->RemoveConnections(cnx);
+		}
+	}
 	return true;
 }
 
@@ -272,8 +264,8 @@ static obs_properties_t *get_misc_props(void *vp)
 	AJAOutputUI *outputUI = (AJAOutputUI *)vp;
 	if (!outputUI)
 		return nullptr;
-	aja::CardManager *cm = outputUI->GetCardManager();
-	if (!cm)
+	aja::CardManager *cardManager = outputUI->GetCardManager();
+	if (!cardManager)
 		return nullptr;
 
 	obs_properties_t *props = obs_properties_create();
@@ -292,7 +284,7 @@ static obs_properties_t *get_misc_props(void *vp)
 	obs_property_list_clear(multiViewAudioSources);
 
 	NTV2DeviceID firstDeviceID = DEVICE_ID_NOTFOUND;
-	for (const auto &iter : *cm) {
+	for (const auto &iter : *cardManager) {
 		if (!iter.second)
 			continue;
 		if (firstDeviceID == DEVICE_ID_NOTFOUND)
@@ -303,9 +295,8 @@ static obs_properties_t *get_misc_props(void *vp)
 	}
 	populate_multi_view_audio_sources(multiViewAudioSources, firstDeviceID);
 	obs_property_set_modified_callback2(deviceList, on_card_changed,
-					    (void *)cm);
-	obs_property_set_modified_callback(multiViewEnable,
-					   on_multi_view_enable);
+					    (void *)cardManager);
+	obs_property_set_modified_callback2(multiViewEnable, on_multi_view_enable, (void*)cardManager);
 	return props;
 }
 

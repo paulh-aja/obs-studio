@@ -19,50 +19,64 @@
 
 #include <obs-module.h>
 
-RasterDefinition GetRasterDefinition(IOSelection io, NTV2VideoFormat vf,
-				     NTV2DeviceID deviceID)
-{
-	RasterDefinition def = RasterDefinition::Unknown;
-
-	if (NTV2_IS_SD_VIDEO_FORMAT(vf)) {
-		def = RasterDefinition::SD;
-	} else if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
-		def = RasterDefinition::HD;
-	} else if (NTV2_IS_QUAD_FRAME_FORMAT(vf)) {
-		def = RasterDefinition::UHD_4K;
-
-		/* NOTE(paulh): Special enum for Kona5 Retail & IO4K+ firmwares which route UHD/4K formats
-		 * over 1x 6G/12G SDI using an undocumented crosspoint config.
-		 */
-		if (aja::IsSDIOneWireIOSelection(io) &&
-		    aja::IsRetailSDI12G(deviceID))
-			def = RasterDefinition::UHD_4K_Retail_12G;
-	} else if (NTV2_IS_QUAD_QUAD_FORMAT(vf)) {
-		def = RasterDefinition::UHD2_8K;
-	} else {
-		def = RasterDefinition::Unknown;
-	}
-
-	return def;
-}
-
-#define NTV2UTILS_ENUM_CASE_RETURN_STR(enum_name) \
-	case (enum_name):                         \
-		return #enum_name
-std::string RasterDefinitionToString(RasterDefinition rd)
-{
-	std::string str = "";
-
-	switch (rd) {
-		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::SD);
-		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::HD);
-		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::UHD_4K);
-		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::UHD2_8K);
-		NTV2UTILS_ENUM_CASE_RETURN_STR(RasterDefinition::Unknown);
-	}
-
-	return str;
-}
+/* This table is used to correlate a particular "raster definition" (i.e. SD/HD/4K/etc.)
+ * and SMPTE VPID transport byte (VPIDStandard) to an SDIWireFormat enum.
+ * This allows mapping SDI video signals to the correct format, particularly in the case
+ * where multiple SDI formats share the same VPID transport value.
+ * For example: VPIDStandard_1080 (0x85) is used on the wire for both single-link (1x SDI wire)
+ * 1080-line HD SDI video AND quad-link (4x SDI wires) UHD/4K "square-division" video.
+ */
+static inline const std::map<VPIDSpec, SDIWireFormat> kSDIWireFormats = {
+	{{RasterDefinition::SD, VPIDStandard_483_576}, SDIWireFormat::SD_ST352},
+	{{RasterDefinition::HD, VPIDStandard_720},
+	 SDIWireFormat::HD_720p_ST292},
+	{{RasterDefinition::HD, VPIDStandard_1080},
+	 SDIWireFormat::HD_1080_ST292},
+	{{RasterDefinition::HD, VPIDStandard_1080_DualLink},
+	 SDIWireFormat::HD_1080_ST372_Dual},
+	{{RasterDefinition::HD, VPIDStandard_720_3Ga},
+	 SDIWireFormat::HD_720p_ST425_3Ga},
+	{{RasterDefinition::HD, VPIDStandard_1080_3Ga},
+	 SDIWireFormat::HD_1080p_ST425_3Ga},
+	{{RasterDefinition::HD, VPIDStandard_1080_DualLink_3Gb},
+	 SDIWireFormat::HD_1080p_ST425_3Gb_DL},
+	{{RasterDefinition::HD, VPIDStandard_720_3Gb},
+	 SDIWireFormat::HD_720p_ST425_3Gb},
+	{{RasterDefinition::HD, VPIDStandard_1080_3Gb},
+	 SDIWireFormat::HD_1080p_ST425_3Gb},
+	{{RasterDefinition::HD, VPIDStandard_1080_Dual_3Ga},
+	 SDIWireFormat::HD_1080p_ST425_Dual_3Ga},
+	{{RasterDefinition::HD, VPIDStandard_1080_Dual_3Gb},
+	 SDIWireFormat::HD_1080p_ST425_Dual_3Gb},
+	{{RasterDefinition::UHD_4K, VPIDStandard_1080_3Gb},
+	 SDIWireFormat::UHD4K_ST292_Dual_1_5_Squares},
+	{{RasterDefinition::UHD_4K, VPIDStandard_1080},
+	 SDIWireFormat::UHD4K_ST292_Quad_1_5_Squares},
+	{{RasterDefinition::UHD_4K, VPIDStandard_1080_3Ga},
+	 SDIWireFormat::UHD4K_ST425_Quad_3Ga_Squares},
+	{{RasterDefinition::UHD_4K, VPIDStandard_1080_DualLink_3Gb},
+	 SDIWireFormat::UHD4K_ST425_Quad_3Gb_Squares},
+	{{RasterDefinition::UHD_4K, VPIDStandard_2160_DualLink},
+	 SDIWireFormat::UHD4K_ST425_Dual_3Gb_2SI},
+	{{RasterDefinition::UHD_4K, VPIDStandard_2160_QuadLink_3Ga},
+	 SDIWireFormat::UHD4K_ST425_Quad_3Ga_2SI},
+	{{RasterDefinition::UHD_4K, VPIDStandard_2160_QuadDualLink_3Gb},
+	 SDIWireFormat::UHD4K_ST425_Quad_3Gb_2SI},
+	{{RasterDefinition::UHD_4K, VPIDStandard_2160_Single_6Gb},
+	 SDIWireFormat::UHD4K_ST2018_6G_Squares_2SI},
+	{{RasterDefinition::UHD_4K_Retail_12G, VPIDStandard_2160_Single_6Gb},
+	 SDIWireFormat::UHD4K_ST2018_6G_Squares_2SI_Kona5_io4KPlus},
+	{{RasterDefinition::UHD_4K, VPIDStandard_2160_Single_12Gb},
+	 SDIWireFormat::UHD4K_ST2018_12G_Squares_2SI},
+	{{RasterDefinition::UHD_4K_Retail_12G, VPIDStandard_2160_Single_12Gb},
+	 SDIWireFormat::UHD4K_ST2018_12G_Squares_2SI_Kona5_io4KPlus},
+	{{RasterDefinition::UHD2_8K, VPIDStandard_4320_DualLink_12Gb},
+	 SDIWireFormat::UHD28K_ST2082_Dual_12G},
+	{{RasterDefinition::UHD2_8K, VPIDStandard_2160_DualLink_12Gb},
+	 SDIWireFormat::UHD28K_ST2082_RGB_Dual_12G},
+	{{RasterDefinition::UHD2_8K, VPIDStandard_4320_QuadLink_12Gb},
+	 SDIWireFormat::UHD28K_ST2082_Quad_12G},
+};
 
 /*
  * Parse the widget routing shorthand string into a map of input and output NTV2CrosspointIDs.
@@ -388,7 +402,7 @@ SDIWireFormat GuessSDIWireFormat(NTV2VideoFormat vf, IOSelection io,
 				 SDI4KTransport t4k,
 				 NTV2DeviceID device_id = DEVICE_ID_NOTFOUND)
 {
-	auto rd = GetRasterDefinition(io, vf, device_id);
+	auto rd = aja::GetRasterDefinition(io, vf, device_id);
 	auto fg = GetNTV2FrameGeometryFromVideoFormat(vf);
 
 	SDIWireFormat swf = SDIWireFormat::Unknown;
@@ -469,7 +483,7 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 
 		if (standard != VPIDStandard_Unknown) {
 			// Determine SDI format based on raster "definition" and VPID byte 1 value (AKA SMPTE standard)
-			auto rasterDef = GetRasterDefinition(props.ioSelect, vf,
+			auto rasterDef = aja::GetRasterDefinition(props.ioSelect, vf,
 							     props.deviceID);
 			VPIDSpec vpidSpec = std::make_pair(rasterDef, standard);
 			DetermineSDIWireFormat(deviceID, vpidSpec, swf);

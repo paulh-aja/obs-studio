@@ -85,6 +85,7 @@ public:
 	void EnumerateCards();
 
 	size_t NumCardEntries() const;
+	CNTV2Card *GetCard(const std::string &cardID);
 	const CardEntryPtr GetCardEntry(const std::string &cardID) const;
 	const CardEntries &GetCardEntries() const;
 	const CardEntries::iterator begin();

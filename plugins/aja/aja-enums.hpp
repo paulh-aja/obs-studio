@@ -1,7 +1,10 @@
 #pragma once
 
-// Additional enums used throughout the AJA plugins for signal routing configuration.
+#include <ajantv2/includes/ntv2vpid.h>
 
+#include <utility>
+
+// Additional enums used throughout the AJA plugins for signal routing configuration.
 enum class IOSelection {
 	SDI1 = 0,
 	SDI2 = 1,
@@ -86,3 +89,5 @@ enum class HDMIWireFormat {
 	TTAP_PRO = 9,
 	Unknown = 10
 };
+
+using VPIDSpec = std::pair<RasterDefinition, VPIDStandard>;

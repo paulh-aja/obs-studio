@@ -906,4 +906,31 @@ std::string MakeCardID(CNTV2Card &card)
 	return cardID;
 }
 
+RasterDefinition GetRasterDefinition(IOSelection io, NTV2VideoFormat vf,
+				     NTV2DeviceID deviceID)
+{
+	RasterDefinition def = RasterDefinition::Unknown;
+
+	if (NTV2_IS_SD_VIDEO_FORMAT(vf)) {
+		def = RasterDefinition::SD;
+	} else if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
+		def = RasterDefinition::HD;
+	} else if (NTV2_IS_QUAD_FRAME_FORMAT(vf)) {
+		def = RasterDefinition::UHD_4K;
+
+		/* NOTE(paulh): Special enum for Kona5 Retail & IO4K+ firmwares which route UHD/4K formats
+		 * over 1x 6G/12G SDI using an undocumented crosspoint config.
+		 */
+		if (aja::IsSDIOneWireIOSelection(io) &&
+		    aja::IsRetailSDI12G(deviceID))
+			def = RasterDefinition::UHD_4K_Retail_12G;
+	} else if (NTV2_IS_QUAD_QUAD_FORMAT(vf)) {
+		def = RasterDefinition::UHD2_8K;
+	} else {
+		def = RasterDefinition::Unknown;
+	}
+
+	return def;
+}
+
 } // aja
