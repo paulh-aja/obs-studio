@@ -250,10 +250,12 @@ bool on_multi_view_enable(void *data, obs_properties_t *props, obs_property_t *l
 	if (NTV2DeviceCanDoHDMIMultiView(deviceId)) {
 		NTV2XptConnections cnx;
 		if (Routing::ParseRouteString(oss.str(), cnx)) {
-			if (multiViewEnabled)
+			card->SetMultiRasterBypassEnable(!multiViewEnabled);
+			if (multiViewEnabled) {
 				card->ApplySignalRoute(cnx, false);
-			else
+			} else {
 				card->RemoveConnections(cnx);
+			}
 		}
 	}
 	return true;
