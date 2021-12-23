@@ -175,9 +175,6 @@ void AJAOutputUI::PreviewOutputStateChanged(bool active)
 	ui->previewOutputButton->setText(text);
 }
 
-// **********
-// Misc Props
-// **********
 static void populate_multi_view_audio_sources(obs_property_t *list,
 					      NTV2DeviceID id)
 {
@@ -185,7 +182,6 @@ static void populate_multi_view_audio_sources(obs_property_t *list,
 	const QList<NTV2InputSource> kMultiViewAudioInputs = {
 		NTV2_INPUTSOURCE_SDI1,  NTV2_INPUTSOURCE_SDI2,
 		NTV2_INPUTSOURCE_SDI3,  NTV2_INPUTSOURCE_SDI4,
-		NTV2_INPUTSOURCE_HDMI1,
 	};
 	for (const auto &inp : kMultiViewAudioInputs) {
 		if (NTV2DeviceCanDoInputSource(id, inp)) {
@@ -217,9 +213,8 @@ bool on_card_changed(void *data, obs_properties_t *props, obs_property_t *list,
 	obs_property_t *multiViewAudioSource =
 		obs_properties_get(props, kUIPropMultiViewAudioSource.id);
 	populate_multi_view_audio_sources(multiViewAudioSource, deviceID);
-	// obs_property_set_enabled(multiViewCheckbox, enableMultiViewUI);
-	// obs_property_set_enabled(multiViewAudioSource, enableMultiViewUI);
-
+	obs_property_set_enabled(multiViewCheckbox, enableMultiViewUI);
+	obs_property_set_enabled(multiViewAudioSource, enableMultiViewUI);
 	return true;
 }
 
@@ -227,7 +222,7 @@ bool on_multi_view_enable(void *data, obs_properties_t *props, obs_property_t *l
 			  obs_data_t *settings)
 {
 	const bool multiViewEnabled = obs_data_get_bool(settings, kUIPropMultiViewEnable.id);
-	const int audioSource = obs_data_get_int(settings, kUIPropMultiViewAudioSource.id);
+	const int audioInputSource = obs_data_get_int(settings, kUIPropMultiViewAudioSource.id);
 	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
 	if (!cardID)
 		return false;
@@ -247,12 +242,25 @@ bool on_multi_view_enable(void *data, obs_properties_t *props, obs_property_t *l
 	}
 
 	NTV2DeviceID deviceId = card->GetDeviceID();
+	NTV2InputSource inputSource = (NTV2InputSource)audioInputSource;
+	NTV2AudioSystem audioSys = NTV2InputSourceToAudioSystem(inputSource);
 	if (NTV2DeviceCanDoHDMIMultiView(deviceId)) {
 		NTV2XptConnections cnx;
 		if (aja::Routing::ParseRouteString(oss.str(), cnx)) {
 			card->SetMultiRasterBypassEnable(!multiViewEnabled);
 			if (multiViewEnabled) {
 				card->ApplySignalRoute(cnx, false);
+				if (NTV2DeviceCanDoAudioMixer(deviceId)) {
+					card->SetAudioMixerInputAudioSystem(NTV2_AudioMixerInputMain, audioSys);
+					card->SetAudioMixerInputChannelSelect(NTV2_AudioMixerInputMain, NTV2_AudioChannel1_2);
+					card->SetAudioMixerInputChannelsMute(NTV2_AudioMixerInputAux1, NTV2AudioChannelsMuteAll);
+					card->SetAudioMixerInputChannelsMute(NTV2_AudioMixerInputAux2, NTV2AudioChannelsMuteAll);
+				}
+				card->SetAudioLoopBack(NTV2_AUDIO_LOOPBACK_ON, audioSys);
+				card->SetAudioOutputMonitorSource(NTV2_AudioChannel1_2, audioSys);
+				card->SetHDMIOutAudioChannels(NTV2_HDMIAudio8Channels);
+				card->SetHDMIOutAudioSource2Channel(NTV2_AudioChannel1_2, audioSys);
+				card->SetHDMIOutAudioSource8Channel(NTV2_AudioChannel1_8, audioSys);
 			} else {
 				card->RemoveConnections(cnx);
 			}
