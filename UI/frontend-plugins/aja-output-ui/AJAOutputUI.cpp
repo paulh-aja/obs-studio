@@ -193,7 +193,7 @@ static void populate_multi_view_audio_sources(obs_property_t *list,
 	}
 }
 
-bool on_card_changed(void *data, obs_properties_t *props, obs_property_t *list,
+static bool on_card_changed(void *data, obs_properties_t *props, obs_property_t *list,
 		     obs_data_t *settings)
 {
 	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
@@ -218,22 +218,8 @@ bool on_card_changed(void *data, obs_properties_t *props, obs_property_t *list,
 	return true;
 }
 
-bool on_multi_view_enable(void *data, obs_properties_t *props, obs_property_t *list,
-			  obs_data_t *settings)
+static void toggle_multi_view(CNTV2Card *card, NTV2InputSource src, bool enable)
 {
-	const bool multiViewEnabled = obs_data_get_bool(settings, kUIPropMultiViewEnable.id);
-	const int audioInputSource = obs_data_get_int(settings, kUIPropMultiViewAudioSource.id);
-	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
-	if (!cardID)
-		return false;
-
-	aja::CardManager *cardManager = (aja::CardManager *)data;
-	if (!cardManager)
-		return false;
-	CNTV2Card *card = cardManager->GetCard(cardID);
-	if (!card)
-		return false;
-
 	std::ostringstream oss;
 	for (int i = 0; i < 4; i++) {
 		std::string datastream = std::to_string(i);
@@ -242,13 +228,12 @@ bool on_multi_view_enable(void *data, obs_properties_t *props, obs_property_t *l
 	}
 
 	NTV2DeviceID deviceId = card->GetDeviceID();
-	NTV2InputSource inputSource = (NTV2InputSource)audioInputSource;
-	NTV2AudioSystem audioSys = NTV2InputSourceToAudioSystem(inputSource);
+	NTV2AudioSystem audioSys = NTV2InputSourceToAudioSystem(src);
 	if (NTV2DeviceCanDoHDMIMultiView(deviceId)) {
 		NTV2XptConnections cnx;
-		if (Routing::ParseRouteString(oss.str(), cnx)) {
-			card->SetMultiRasterBypassEnable(!multiViewEnabled);
-			if (multiViewEnabled) {
+		if (aja::Routing::ParseRouteString(oss.str(), cnx)) {
+			card->SetMultiRasterBypassEnable(!enable);
+			if (enable) {
 				card->ApplySignalRoute(cnx, false);
 				if (NTV2DeviceCanDoAudioMixer(deviceId)) {
 					card->SetAudioMixerInputAudioSystem(NTV2_AudioMixerInputMain, audioSys);
@@ -266,10 +251,33 @@ bool on_multi_view_enable(void *data, obs_properties_t *props, obs_property_t *l
 			}
 		}
 	}
+}
+
+static bool on_multi_view_enable(void *data, obs_properties_t *props, obs_property_t *list,
+			  obs_data_t *settings)
+{
+	UNUSED_PARAMETER(props);
+	UNUSED_PARAMETER(list);
+	const bool multiViewEnabled = obs_data_get_bool(settings, kUIPropMultiViewEnable.id);
+	const int audioInputSource = obs_data_get_int(settings, kUIPropMultiViewAudioSource.id);
+	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
+	if (!cardID)
+		return false;
+
+	aja::CardManager *cardManager = (aja::CardManager *)data;
+	if (!cardManager)
+		return false;
+	CNTV2Card *card = cardManager->GetCard(cardID);
+	if (!card)
+		return false;
+
+	NTV2InputSource inputSource = (NTV2InputSource)audioInputSource;
+	toggle_multi_view(card, inputSource, multiViewEnabled);
+
 	return true;
 }
 
-static obs_properties_t *get_misc_props(void *vp)
+static obs_properties_t *reload_misc_props_ui(void *vp)
 {
 	AJAOutputUI *outputUI = (AJAOutputUI *)vp;
 	if (!outputUI)
@@ -304,9 +312,9 @@ static obs_properties_t *get_misc_props(void *vp)
 			iter.second->GetCardID().c_str());
 	}
 	populate_multi_view_audio_sources(multiViewAudioSources, firstDeviceID);
-	obs_property_set_modified_callback2(deviceList, on_card_changed,
-					    (void *)cardManager);
-	obs_property_set_modified_callback2(multiViewEnable, on_multi_view_enable, (void*)cardManager);
+	obs_property_set_modified_callback2(deviceList, on_card_changed, cardManager);
+	obs_property_set_modified_callback2(multiViewEnable, on_multi_view_enable, cardManager);
+	obs_property_set_modified_callback2(multiViewAudioSources, on_multi_view_enable, cardManager);
 	return props;
 }
 
@@ -334,12 +342,13 @@ void AJAOutputUI::SetupMiscPropertiesView()
 	OBSData data = load_settings(kMiscPropsFilename);
 	if (data) {
 		obs_data_apply(settings, data);
+		on_multi_view_enable(GetCardManager(), nullptr, nullptr, settings);
 	} else {
 		// TODO: apply defaults
 	}
 
 	miscPropertiesView = new OBSPropertiesView(
-		settings, this, (PropertiesReloadCallback)get_misc_props,
+		settings, this, (PropertiesReloadCallback)reload_misc_props_ui,
 		nullptr, nullptr, 170);
 
 	ui->miscPropertiesLayout->addWidget(miscPropertiesView);
