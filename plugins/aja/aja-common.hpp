@@ -92,5 +92,6 @@ extern std::string MakeCardID(CNTV2Card &card);
 extern RasterDefinition
 GetRasterDefinition(IOSelection io, NTV2VideoFormat vf,
 		    NTV2DeviceID deviceID = DEVICE_ID_NOTFOUND);
+extern RasterDefinition DetermineRasterDefinition(NTV2VideoFormat vf);
 
 } // aja

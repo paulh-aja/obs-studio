@@ -1,5 +1,7 @@
 #pragma once
+
 #include "aja-props.hpp"
+#include "aja-presets.hpp"
 
 #include <ajantv2/includes/ntv2enums.h>
 #include <ajantv2/includes/ntv2signalrouter.h>
@@ -8,6 +10,7 @@
 
 class CNTV2Card;
 
+namespace aja {
 /* The AJA hardware and NTV2 SDK uses a concept called "Signal Routing" to connect high-level firmware
  * blocks known as "Widgets" to one another via "crosspoint" connections. This facilitates streaming
  * data from one Widget to another to achieve specific functionality.
@@ -46,25 +49,26 @@ public:
 				     NTV2XptConnections &cnx);
 	static bool DetermineSDIWireFormat(NTV2DeviceID deviceID, VPIDSpec spec,
 					   SDIWireFormat &swf);
-	static bool FindRoutingConfigHDMI(HDMIWireFormat hwf, NTV2Mode mode,
-					  bool isRGB, NTV2DeviceID deviceID,
-					  RoutingConfig &routing);
-	static bool FindRoutingConfigSDI(SDIWireFormat swf, NTV2Mode mode,
-					 bool isRGB, NTV2DeviceID deviceID,
-					 RoutingConfig &routing);
+	// static bool FindRoutingConfigHDMI(HDMIWireFormat hwf, NTV2Mode mode,
+	// 				  bool isRGB, NTV2DeviceID deviceID,
+	// 				  RoutingConfig &routing);
+	// static bool FindRoutingConfigSDI(SDIWireFormat swf, NTV2Mode mode,
+	// 				 bool isRGB, NTV2DeviceID deviceID,
+	// 				 RoutingConfig &routing);
 
 	static void StartSourceAudio(const SourceProps &props, CNTV2Card *card);
-
 	static void StopSourceAudio(const SourceProps &props, CNTV2Card *card);
 
 	static bool ConfigureSourceRoute(const SourceProps &props,
 					 NTV2Mode mode, CNTV2Card *card);
 	static bool ConfigureOutputRoute(const OutputProps &props,
 					 NTV2Mode mode, CNTV2Card *card);
+	static void ConfigureOutputAudio(const OutputProps &props,
+					 CNTV2Card *card);
+
 	static ULWord initial_framestore_output_index(NTV2DeviceID deviceID,
 						      IOSelection io,
 						      NTV2Channel init_channel);
-
-	static void ConfigureOutputAudio(const OutputProps &props,
-					 CNTV2Card *card);
 };
+
+} // aja

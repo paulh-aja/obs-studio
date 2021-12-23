@@ -933,4 +933,24 @@ RasterDefinition GetRasterDefinition(IOSelection io, NTV2VideoFormat vf,
 	return def;
 }
 
+RasterDefinition DetermineRasterDefinition(NTV2VideoFormat vf)
+{
+	RasterDefinition def = RasterDefinition::Unknown;
+
+	if (NTV2_IS_SD_VIDEO_FORMAT(vf)) {
+		def = RasterDefinition::SD;
+	} else if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
+		def = RasterDefinition::HD;
+	} else if (NTV2_IS_QUAD_FRAME_FORMAT(vf)) {
+		def = RasterDefinition::UHD_4K;
+	} else if (NTV2_IS_QUAD_QUAD_FORMAT(vf)) {
+		def = RasterDefinition::UHD2_8K;
+	}
+	else {
+		def = RasterDefinition::Unknown;
+	}
+
+	return def;
+}
+
 } // aja

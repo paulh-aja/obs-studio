@@ -4,6 +4,26 @@
 
 #include <utility>
 
+typedef enum {
+    kEnable3GOut = 1 << 0,
+    kEnable6GOut = 1 << 1,
+    kEnable12GOut = 1 << 2,
+    kConvert3GIn = 1 << 3,
+    kConvert3GOut = 1 << 4,
+    kConvert3GaRGBOut = 1 << 5,
+    kEnable3GbOut = 1 << 6,
+    kEnable4KSquares = 1 << 7,
+	kEnable8KSquares = 1 << 8,
+    kEnable4KTSI = 1 << 9,
+} RoutingPresetFlags;
+
+enum class ConnectionKind {
+	SDI = 0,
+	HDMI = 1,
+	Analog = 2,
+	Unknown = 3
+};
+
 // Additional enums used throughout the AJA plugins for signal routing configuration.
 enum class IOSelection {
 	SDI1 = 0,

@@ -510,7 +510,7 @@ uint32_t AJAOutput::get_frame_count()
 }
 
 // Perform DMA of audio samples to AJA card while taking into account wrapping around the
-// ends of the card's audio buffer (size set to 4MB in Routing::ConfigureOutputAudio).
+// ends of the card's audio buffer (size set to 4MB in aja::Routing::ConfigureOutputAudio).
 void AJAOutput::dma_audio_samples(NTV2AudioSystem audioSys, uint32_t *data,
 				  size_t size)
 {
@@ -1117,14 +1117,14 @@ static bool aja_output_start(void *data)
 	}
 
 	// Configures crosspoint routing on AJA card
-	if (!Routing::ConfigureOutputRoute(outputProps, NTV2_MODE_DISPLAY,
+	if (!aja::Routing::ConfigureOutputRoute(outputProps, NTV2_MODE_DISPLAY,
 					   card)) {
 		blog(LOG_ERROR,
 		     "aja_output_start: Error configuring output route!");
 		return false;
 	}
 
-	Routing::ConfigureOutputAudio(outputProps, card);
+	aja::Routing::ConfigureOutputAudio(outputProps, card);
 
 	const auto &formatDesc = outputProps.FormatDesc();
 	struct video_scale_info scaler = {};

@@ -31,6 +31,7 @@ set(aja_SOURCES
 	aja-card-manager.cpp
 	aja-common.cpp
 	aja-output.cpp
+	aja-presets.cpp
 	aja-props.cpp
 	aja-routing.cpp
 	aja-source.cpp
@@ -43,6 +44,7 @@ set(aja_HEADERS
 	aja-enums.hpp
 	aja-ui-props.hpp
 	aja-output.hpp
+	aja-presets.hpp
 	aja-props.hpp
 	aja-routing.hpp
 	aja-source.hpp
