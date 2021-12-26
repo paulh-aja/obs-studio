@@ -3,6 +3,7 @@
 
 #include "../../../plugins/aja/aja-ui-props.hpp"
 #include "../../../plugins/aja/aja-card-manager.hpp"
+#include "../../../plugins/aja/aja-routing.hpp"
 
 #include <obs-module.h>
 #include <obs-frontend-api.h>
@@ -17,7 +18,7 @@
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("aja-output-ui", "en-US")
 
-static aja::CardManager *cardManager;
+static aja::CardManager *cardManager = nullptr;
 static AJAOutputUI *ajaOutputUI = nullptr;
 static obs_output_t *output = nullptr;
 
@@ -185,6 +186,125 @@ void preview_output_toggle()
 		preview_output_start();
 }
 
+// MISC PROPS
+void populate_misc_device_list(obs_property_t *list,
+	aja::CardManager *cardManager, NTV2DeviceID& firstDeviceID)
+{
+	for (const auto &iter : *cardManager) {
+		if (!iter.second)
+			continue;
+		if (firstDeviceID == DEVICE_ID_NOTFOUND)
+			firstDeviceID = iter.second->GetDeviceID();
+		obs_property_list_add_string(
+			list, iter.second->GetDisplayName().c_str(),
+			iter.second->GetCardID().c_str());
+	}
+}
+
+void populate_multi_view_audio_sources(obs_property_t *list,
+					      NTV2DeviceID id)
+{
+	obs_property_list_clear(list);
+	const QList<NTV2InputSource> kMultiViewAudioInputs = {
+		NTV2_INPUTSOURCE_SDI1,  NTV2_INPUTSOURCE_SDI2,
+		NTV2_INPUTSOURCE_SDI3,  NTV2_INPUTSOURCE_SDI4,
+	};
+	for (const auto &inp : kMultiViewAudioInputs) {
+		if (NTV2DeviceCanDoInputSource(id, inp)) {
+			std::string inputSourceStr =
+				NTV2InputSourceToString(inp, true);
+			obs_property_list_add_int(list, inputSourceStr.c_str(),
+						  (long long)inp);
+		}
+	}
+}
+
+bool on_misc_device_selected(void *data, obs_properties_t *props, obs_property_t *list,
+		     obs_data_t *settings)
+{
+	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
+	if (!cardID)
+		return false;
+	aja::CardManager *cardManager = (aja::CardManager *)data;
+	if (!cardManager)
+		return false;
+	auto cardEntry = cardManager->GetCardEntry(cardID);
+	if (!cardEntry)
+		return false;
+
+	NTV2DeviceID deviceID = cardEntry->GetDeviceID();
+	bool enableMultiViewUI = NTV2DeviceCanDoHDMIMultiView(deviceID);
+	obs_property_t *multiViewCheckbox =
+		obs_properties_get(props, kUIPropMultiViewEnable.id);
+	obs_property_t *multiViewAudioSource =
+		obs_properties_get(props, kUIPropMultiViewAudioSource.id);
+	populate_multi_view_audio_sources(multiViewAudioSource, deviceID);
+	obs_property_set_enabled(multiViewCheckbox, enableMultiViewUI);
+	obs_property_set_enabled(multiViewAudioSource, enableMultiViewUI);
+	return true;
+}
+
+static void toggle_multi_view(CNTV2Card *card, NTV2InputSource src, bool enable)
+{
+	std::ostringstream oss;
+	for (int i = 0; i < 4; i++) {
+		std::string datastream = std::to_string(i);
+		oss << "sdi[" << datastream << "][0]->hdmi[0][" << datastream
+		    << "];";
+	}
+
+	NTV2DeviceID deviceId = card->GetDeviceID();
+	NTV2AudioSystem audioSys = NTV2InputSourceToAudioSystem(src);
+	if (NTV2DeviceCanDoHDMIMultiView(deviceId)) {
+		NTV2XptConnections cnx;
+		if (aja::Routing::ParseRouteString(oss.str(), cnx)) {
+			card->SetMultiRasterBypassEnable(!enable);
+			if (enable) {
+				card->ApplySignalRoute(cnx, false);
+				if (NTV2DeviceCanDoAudioMixer(deviceId)) {
+					card->SetAudioMixerInputAudioSystem(NTV2_AudioMixerInputMain, audioSys);
+					card->SetAudioMixerInputChannelSelect(NTV2_AudioMixerInputMain, NTV2_AudioChannel1_2);
+					card->SetAudioMixerInputChannelsMute(NTV2_AudioMixerInputAux1, NTV2AudioChannelsMuteAll);
+					card->SetAudioMixerInputChannelsMute(NTV2_AudioMixerInputAux2, NTV2AudioChannelsMuteAll);
+				}
+				card->SetAudioLoopBack(NTV2_AUDIO_LOOPBACK_ON, audioSys);
+				card->SetAudioOutputMonitorSource(NTV2_AudioChannel1_2, audioSys);
+				card->SetHDMIOutAudioChannels(NTV2_HDMIAudio8Channels);
+				card->SetHDMIOutAudioSource2Channel(NTV2_AudioChannel1_2, audioSys);
+				card->SetHDMIOutAudioSource8Channel(NTV2_AudioChannel1_8, audioSys);
+			} else {
+				card->RemoveConnections(cnx);
+			}
+		}
+	}
+}
+
+bool on_multi_view_toggle(void *data, obs_properties_t *props, obs_property_t *list,
+			  obs_data_t *settings)
+{
+	UNUSED_PARAMETER(props);
+	UNUSED_PARAMETER(list);
+	// const bool multiViewEnabled = obs_data_get_bool(settings, kUIPropMultiViewEnable.id);
+	bool multiViewEnabled = obs_data_get_bool(settings, kUIPropMultiViewEnable.id) && !main_output_running && !preview_output_running;
+	const int audioInputSource = obs_data_get_int(settings, kUIPropMultiViewAudioSource.id);
+	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
+	if (!cardID)
+		return false;
+	aja::CardManager *cardManager = (aja::CardManager *)data;
+	if (!cardManager)
+		return false;
+	CNTV2Card *card = cardManager->GetCard(cardID);
+	if (!card)
+		return false;
+
+	NTV2InputSource inputSource = (NTV2InputSource)audioInputSource;
+	toggle_multi_view(card, inputSource, multiViewEnabled);
+
+	return true;
+}
+
+// MISC PROPS
+
 void on_preview_scene_changed(enum obs_frontend_event event, void *param)
 {
 	auto ctx = (struct preview_output *)param;
@@ -291,17 +411,20 @@ static void OBSEvent(enum obs_frontend_event event, void *)
 {
 	if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
 		OBSData settings = load_settings(kProgramPropsFilename);
-
 		if (settings &&
 		    obs_data_get_bool(settings, kUIPropAutoStartOutput.id))
 			output_start();
 
 		OBSData previewSettings = load_settings(kPreviewPropsFilename);
-
 		if (previewSettings &&
 		    obs_data_get_bool(previewSettings,
 				      kUIPropAutoStartOutput.id))
 			preview_output_start();
+
+		OBSData miscSettings = load_settings(kMiscPropsFilename);
+		if (miscSettings && ajaOutputUI) {
+			on_multi_view_toggle(ajaOutputUI->GetCardManager(), nullptr, nullptr, miscSettings);
+		}
 	} else if (event == OBS_FRONTEND_EVENT_EXIT) {
 		if (main_output_running)
 			output_stop();
@@ -314,7 +437,8 @@ static void aja_loaded(void *data, calldata_t *calldata)
 {
 	// Receive CardManager pointer from the main AJA plugin
 	calldata_get_ptr(calldata, "card_manager", &cardManager);
-	ajaOutputUI->SetCardManager(cardManager);
+	if (ajaOutputUI)
+		ajaOutputUI->SetCardManager(cardManager);
 }
 
 bool obs_module_load(void)
@@ -327,6 +451,7 @@ bool obs_module_load(void)
 		return false;
 	}
 
+	// Signal to wait for AJA plugin to finish loading so we can access the CardManager instance
 	auto signal_handler = obs_get_signal_handler();
 	signal_handler_add(signal_handler, "void aja_loaded(ptr card_manager)");
 	signal_handler_connect(signal_handler, "aja_loaded", aja_loaded,

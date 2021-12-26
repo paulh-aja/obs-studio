@@ -4,7 +4,6 @@
 #include "../../../plugins/aja/aja-ui-props.hpp"
 #include "../../../plugins/aja/aja-enums.hpp"
 #include "../../../plugins/aja/aja-card-manager.hpp"
-#include "../../../plugins/aja/aja-routing.hpp"
 
 #include <ajantv2/includes/ntv2card.h>
 #include <ajantv2/includes/ntv2devicefeatures.h>
@@ -49,15 +48,15 @@ void AJAOutputUI::SetupPropertiesView()
 		obs_data_apply(settings, data);
 	} else {
 		// apply default settings
-		obs_data_set_int(settings, kUIPropOutput.id,
-				 static_cast<long long>(IOSelection::Invalid));
-		obs_data_set_int(settings, kUIPropVideoFormatSelect.id,
-				 static_cast<long long>(NTV2_FORMAT_720p_5994));
-		obs_data_set_int(settings, kUIPropPixelFormatSelect.id,
-				 static_cast<long long>(NTV2_FBF_8BIT_YCBCR));
-		obs_data_set_int(settings, kUIPropSDI4KTransport.id,
-				 static_cast<long long>(
-					 SDI4KTransport::TwoSampleInterleave));
+		// obs_data_set_int(settings, kUIPropOutput.id,
+		// 		 static_cast<long long>(IOSelection::Invalid));
+		// obs_data_set_int(settings, kUIPropVideoFormatSelect.id,
+		// 		 static_cast<long long>(NTV2_FORMAT_720p_5994));
+		// obs_data_set_int(settings, kUIPropPixelFormatSelect.id,
+		// 		 static_cast<long long>(NTV2_FBF_8BIT_YCBCR));
+		// obs_data_set_int(settings, kUIPropSDITransport4K.id,
+		// 		 static_cast<long long>(
+		// 			 SDITransport4K::TwoSampleInterleave));
 	}
 
 	// Assign an ID to the program output plugin instance for channel usage tracking
@@ -100,15 +99,15 @@ void AJAOutputUI::SetupPreviewPropertiesView()
 		obs_data_apply(settings, data);
 	} else {
 		// apply default settings
-		obs_data_set_int(settings, kUIPropOutput.id,
-				 static_cast<long long>(IOSelection::Invalid));
-		obs_data_set_int(settings, kUIPropVideoFormatSelect.id,
-				 static_cast<long long>(NTV2_FORMAT_720p_5994));
-		obs_data_set_int(settings, kUIPropPixelFormatSelect.id,
-				 static_cast<long long>(NTV2_FBF_8BIT_YCBCR));
-		obs_data_set_int(settings, kUIPropSDI4KTransport.id,
-				 static_cast<long long>(
-					 SDI4KTransport::TwoSampleInterleave));
+		// obs_data_set_int(settings, kUIPropOutput.id,
+		// 		 static_cast<long long>(IOSelection::Invalid));
+		// obs_data_set_int(settings, kUIPropVideoFormatSelect.id,
+		// 		 static_cast<long long>(NTV2_FORMAT_720p_5994));
+		// obs_data_set_int(settings, kUIPropPixelFormatSelect.id,
+		// 		 static_cast<long long>(NTV2_FBF_8BIT_YCBCR));
+		// obs_data_set_int(settings, kUIPropSDITransport4K.id,
+		// 		 static_cast<long long>(
+		// 			 SDITransport4K::TwoSampleInterleave));
 	}
 
 	// Assign an ID to the program output plugin instance for channel usage tracking
@@ -175,101 +174,7 @@ void AJAOutputUI::PreviewOutputStateChanged(bool active)
 	ui->previewOutputButton->setText(text);
 }
 
-static void populate_multi_view_audio_sources(obs_property_t *list,
-					      NTV2DeviceID id)
-{
-	obs_property_list_clear(list);
-	const QList<NTV2InputSource> kMultiViewAudioInputs = {
-		NTV2_INPUTSOURCE_SDI1,  NTV2_INPUTSOURCE_SDI2,
-		NTV2_INPUTSOURCE_SDI3,  NTV2_INPUTSOURCE_SDI4,
-	};
-	for (const auto &inp : kMultiViewAudioInputs) {
-		if (NTV2DeviceCanDoInputSource(id, inp)) {
-			std::string inputSourceStr =
-				NTV2InputSourceToString(inp, true);
-			obs_property_list_add_int(list, inputSourceStr.c_str(),
-						  (long long)inp);
-		}
-	}
-}
-
-bool on_card_changed(void *data, obs_properties_t *props, obs_property_t *list,
-		     obs_data_t *settings)
-{
-	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
-	if (!cardID)
-		return false;
-	aja::CardManager *cardManager = (aja::CardManager *)data;
-	if (!cardManager)
-		return false;
-	auto cardEntry = cardManager->GetCardEntry(cardID);
-	if (!cardEntry)
-		return false;
-
-	NTV2DeviceID deviceID = cardEntry->GetDeviceID();
-	bool enableMultiViewUI = NTV2DeviceCanDoHDMIMultiView(deviceID);
-	obs_property_t *multiViewCheckbox =
-		obs_properties_get(props, kUIPropMultiViewEnable.id);
-	obs_property_t *multiViewAudioSource =
-		obs_properties_get(props, kUIPropMultiViewAudioSource.id);
-	populate_multi_view_audio_sources(multiViewAudioSource, deviceID);
-	obs_property_set_enabled(multiViewCheckbox, enableMultiViewUI);
-	obs_property_set_enabled(multiViewAudioSource, enableMultiViewUI);
-	return true;
-}
-
-bool on_multi_view_enable(void *data, obs_properties_t *props, obs_property_t *list,
-			  obs_data_t *settings)
-{
-	const bool multiViewEnabled = obs_data_get_bool(settings, kUIPropMultiViewEnable.id);
-	const int audioInputSource = obs_data_get_int(settings, kUIPropMultiViewAudioSource.id);
-	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
-	if (!cardID)
-		return false;
-
-	aja::CardManager *cardManager = (aja::CardManager *)data;
-	if (!cardManager)
-		return false;
-	CNTV2Card *card = cardManager->GetCard(cardID);
-	if (!card)
-		return false;
-
-	std::ostringstream oss;
-	for (int i = 0; i < 4; i++) {
-		std::string datastream = std::to_string(i);
-		oss << "sdi[" << datastream << "][0]->hdmi[0][" << datastream
-		    << "];";
-	}
-
-	NTV2DeviceID deviceId = card->GetDeviceID();
-	NTV2InputSource inputSource = (NTV2InputSource)audioInputSource;
-	NTV2AudioSystem audioSys = NTV2InputSourceToAudioSystem(inputSource);
-	if (NTV2DeviceCanDoHDMIMultiView(deviceId)) {
-		NTV2XptConnections cnx;
-		if (aja::Routing::ParseRouteString(oss.str(), cnx)) {
-			card->SetMultiRasterBypassEnable(!multiViewEnabled);
-			if (multiViewEnabled) {
-				card->ApplySignalRoute(cnx, false);
-				if (NTV2DeviceCanDoAudioMixer(deviceId)) {
-					card->SetAudioMixerInputAudioSystem(NTV2_AudioMixerInputMain, audioSys);
-					card->SetAudioMixerInputChannelSelect(NTV2_AudioMixerInputMain, NTV2_AudioChannel1_2);
-					card->SetAudioMixerInputChannelsMute(NTV2_AudioMixerInputAux1, NTV2AudioChannelsMuteAll);
-					card->SetAudioMixerInputChannelsMute(NTV2_AudioMixerInputAux2, NTV2AudioChannelsMuteAll);
-				}
-				card->SetAudioLoopBack(NTV2_AUDIO_LOOPBACK_ON, audioSys);
-				card->SetAudioOutputMonitorSource(NTV2_AudioChannel1_2, audioSys);
-				card->SetHDMIOutAudioChannels(NTV2_HDMIAudio8Channels);
-				card->SetHDMIOutAudioSource2Channel(NTV2_AudioChannel1_2, audioSys);
-				card->SetHDMIOutAudioSource8Channel(NTV2_AudioChannel1_8, audioSys);
-			} else {
-				card->RemoveConnections(cnx);
-			}
-		}
-	}
-	return true;
-}
-
-static obs_properties_t *get_misc_props(void *vp)
+static obs_properties_t *create_misc_props_ui(void *vp)
 {
 	AJAOutputUI *outputUI = (AJAOutputUI *)vp;
 	if (!outputUI)
@@ -294,19 +199,11 @@ static obs_properties_t *get_misc_props(void *vp)
 	obs_property_list_clear(multiViewAudioSources);
 
 	NTV2DeviceID firstDeviceID = DEVICE_ID_NOTFOUND;
-	for (const auto &iter : *cardManager) {
-		if (!iter.second)
-			continue;
-		if (firstDeviceID == DEVICE_ID_NOTFOUND)
-			firstDeviceID = iter.second->GetDeviceID();
-		obs_property_list_add_string(
-			deviceList, iter.second->GetDisplayName().c_str(),
-			iter.second->GetCardID().c_str());
-	}
+	populate_misc_device_list(deviceList, cardManager, firstDeviceID);
 	populate_multi_view_audio_sources(multiViewAudioSources, firstDeviceID);
-	obs_property_set_modified_callback2(deviceList, on_card_changed,
-					    (void *)cardManager);
-	obs_property_set_modified_callback2(multiViewEnable, on_multi_view_enable, (void*)cardManager);
+	obs_property_set_modified_callback2(deviceList, on_misc_device_selected, cardManager);
+	obs_property_set_modified_callback2(multiViewEnable, on_multi_view_toggle, cardManager);
+	obs_property_set_modified_callback2(multiViewAudioSources, on_multi_view_toggle, cardManager);
 	return props;
 }
 
@@ -339,7 +236,7 @@ void AJAOutputUI::SetupMiscPropertiesView()
 	}
 
 	miscPropertiesView = new OBSPropertiesView(
-		settings, this, (PropertiesReloadCallback)get_misc_props,
+		settings, this, (PropertiesReloadCallback)create_misc_props_ui,
 		nullptr, nullptr, 170);
 
 	ui->miscPropertiesLayout->addWidget(miscPropertiesView);
