@@ -1118,7 +1118,7 @@ static bool aja_output_start(void *data)
 
 	// Configures crosspoint routing on AJA card
 	if (!aja::Routing::ConfigureOutputRoute(outputProps, NTV2_MODE_DISPLAY,
-					   card)) {
+						card)) {
 		blog(LOG_ERROR,
 		     "aja_output_start: Error configuring output route!");
 		return false;

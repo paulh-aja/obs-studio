@@ -11,19 +11,19 @@
 namespace aja {
 
 struct RoutingPreset {
-    std::string name;
-    ConnectionKind kind;
-    NTV2Mode mode;
-    uint32_t num_channels;
-    uint32_t num_framestores;
-    uint32_t flags;
-    bool is_rgb;
-    std::string route_string;
-    std::vector<NTV2DeviceID> device_ids;
-    RasterDefinition raster_def;
-    HDMIWireFormat hdmi_wire_format;
-    SDIWireFormat sdi_wire_format;
-    VPIDStandard vpid_standard;
+	std::string name;
+	ConnectionKind kind;
+	NTV2Mode mode;
+	uint32_t num_channels;
+	uint32_t num_framestores;
+	uint32_t flags;
+	bool is_rgb;
+	std::string route_string;
+	std::vector<NTV2DeviceID> device_ids;
+	RasterDefinition raster_def;
+	HDMIWireFormat hdmi_wire_format;
+	SDIWireFormat sdi_wire_format;
+	VPIDStandard vpid_standard;
 };
 
 using RoutingPresets = std::vector<RoutingPreset>;
@@ -32,24 +32,19 @@ using RoutingPresetMap = std::map<std::string, RoutingPreset>;
 
 class RoutingConfigurator {
 public:
-    RoutingConfigurator();
-    void AddPreset(const std::string& name, const RoutingPreset& preset);
-    bool PresetByName(const std::string& name, RoutingPreset& preset) const;
-    RoutingPresetMap GetPresetTable() const;
-    bool FindFirstPreset(
-        ConnectionKind kind,
-        NTV2DeviceID id,
-        NTV2Mode mode,
-        NTV2VideoFormat vf,
-        NTV2PixelFormat pf,
-        VPIDStandard standard,
-        RoutingPreset& preset
-    );
+	RoutingConfigurator();
+	void AddPreset(const std::string &name, const RoutingPreset &preset);
+	bool PresetByName(const std::string &name, RoutingPreset &preset) const;
+	RoutingPresetMap GetPresetTable() const;
+	bool FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
+			     NTV2Mode mode, NTV2VideoFormat vf,
+			     NTV2PixelFormat pf, VPIDStandard standard,
+			     RoutingPreset &preset);
 
 private:
-    void build_preset_table();
+	void build_preset_table();
 
-    RoutingPresetMap m_presets;
+	RoutingPresetMap m_presets;
 };
 
 } // aja

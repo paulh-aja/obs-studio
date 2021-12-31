@@ -3,16 +3,6 @@
 #include "aja-routing.hpp"
 #include "aja-widget-io.hpp"
 
-// Signal routing crosspoint and register setting tables for SDI/HDMI/etc.
-// #include "routing/hdmi_rgb_capture.h"
-// #include "routing/hdmi_rgb_display.h"
-// #include "routing/hdmi_ycbcr_capture.h"
-// #include "routing/hdmi_ycbcr_display.h"
-// #include "routing/sdi_ycbcr_capture.h"
-// #include "routing/sdi_ycbcr_display.h"
-// #include "routing/sdi_rgb_capture.h"
-// #include "routing/sdi_rgb_display.h"
-
 #include <ajabase/common/common.h>
 #include <ajantv2/includes/ntv2card.h>
 #include <ajantv2/includes/ntv2devicefeatures.h>
@@ -248,89 +238,6 @@ bool Routing::DetermineSDIWireFormat(NTV2DeviceID deviceID, VPIDSpec spec,
 	return false;
 }
 
-// Lookup configuration for HDMI input/output in the routing table.
-// bool Routing::FindRoutingConfigHDMI(HDMIWireFormat hwf, NTV2Mode mode,
-// 				    bool isRGB, NTV2DeviceID deviceID,
-// 				    RoutingConfig &routing)
-// {
-// 	if (isRGB) {
-// 		if (mode == NTV2_MODE_CAPTURE) {
-// 			if (kHDMIRGBCaptureConfigs.find(hwf) !=
-// 			    kHDMIRGBCaptureConfigs.end()) {
-// 				routing = kHDMIRGBCaptureConfigs.at(hwf);
-// 				return true;
-// 			}
-// 		} else {
-// 			if (deviceID == DEVICE_ID_TTAP_PRO) {
-// 				routing = kHDMIRGBDisplayConfigs.at(
-// 					HDMIWireFormat::TTAP_PRO);
-// 				return true;
-// 			}
-// 			if (kHDMIRGBDisplayConfigs.find(hwf) !=
-// 			    kHDMIRGBDisplayConfigs.end()) {
-// 				routing = kHDMIRGBDisplayConfigs.at(hwf);
-// 				return true;
-// 			}
-// 		}
-// 	} else {
-// 		if (mode == NTV2_MODE_CAPTURE) {
-// 			if (kHDMIYCbCrCaptureConfigs.find(hwf) !=
-// 			    kHDMIYCbCrCaptureConfigs.end()) {
-// 				routing = kHDMIYCbCrCaptureConfigs.at(hwf);
-// 				return true;
-// 			}
-// 		} else {
-// 			if (kHDMIYCbCrDisplayConfigs.find(hwf) !=
-// 			    kHDMIYCbCrDisplayConfigs.end()) {
-// 				routing = kHDMIYCbCrDisplayConfigs.at(hwf);
-// 				return true;
-// 			}
-// 		}
-// 	}
-
-// 	return false;
-// }
-
-// Lookup configuration for SDI input/output in the routing table.
-// bool Routing::FindRoutingConfigSDI(SDIWireFormat swf, NTV2Mode mode, bool isRGB,
-// 				   NTV2DeviceID deviceID,
-// 				   RoutingConfig &routing)
-// {
-// 	UNUSED_PARAMETER(deviceID);
-
-// 	if (isRGB) {
-// 		if (mode == NTV2_MODE_CAPTURE) {
-// 			if (kSDIRGBCaptureConfigs.find(swf) !=
-// 			    kSDIRGBCaptureConfigs.end()) {
-// 				routing = kSDIRGBCaptureConfigs.at(swf);
-// 				return true;
-// 			}
-// 		} else if (mode == NTV2_MODE_DISPLAY) {
-// 			if (kSDIRGBDisplayConfigs.find(swf) !=
-// 			    kSDIRGBDisplayConfigs.end()) {
-// 				routing = kSDIRGBDisplayConfigs.at(swf);
-// 				return true;
-// 			}
-// 		}
-// 	} else {
-// 		if (mode == NTV2_MODE_CAPTURE) {
-// 			if (kSDIYCbCrCaptureConfigs.find(swf) !=
-// 			    kSDIYCbCrCaptureConfigs.end()) {
-// 				routing = kSDIYCbCrCaptureConfigs.at(swf);
-// 				return true;
-// 			}
-// 		} else if (mode == NTV2_MODE_DISPLAY) {
-// 			if (kSDIYCbCrDisplayConfigs.find(swf) !=
-// 			    kSDIYCbCrDisplayConfigs.end()) {
-// 				routing = kSDIYCbCrDisplayConfigs.at(swf);
-// 				return true;
-// 			}
-// 		}
-// 	}
-
-// 	return false;
-// }
-
 void Routing::StartSourceAudio(const SourceProps &props, CNTV2Card *card)
 {
 	if (!card)
@@ -486,8 +393,8 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 
 		if (standard != VPIDStandard_Unknown) {
 			// Determine SDI format based on raster "definition" and VPID byte 1 value (AKA SMPTE standard)
-			auto rasterDef = aja::GetRasterDefinition(props.ioSelect, vf,
-							     props.deviceID);
+			auto rasterDef = aja::GetRasterDefinition(
+				props.ioSelect, vf, props.deviceID);
 			VPIDSpec vpidSpec = std::make_pair(rasterDef, standard);
 			DetermineSDIWireFormat(deviceID, vpidSpec, swf);
 		} else {
@@ -502,15 +409,9 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 			return false;
 		}
 
-		// if (!FindRoutingConfigSDI(swf, mode,
-		// 			  NTV2_IS_FBF_RGB(props.pixelFormat),
-		// 			  props.deviceID, rc)) {
-		// 	blog(LOG_DEBUG,
-		// 	     "Could not find RoutingConfig for SDI Wire Format!");
-		// 	return false;
-		// }
-		
-		rc.FindFirstPreset(ConnectionKind::SDI, props.deviceID, NTV2_MODE_CAPTURE, vf, props.pixelFormat, standard, rp);
+		rc.FindFirstPreset(ConnectionKind::SDI, props.deviceID,
+				   NTV2_MODE_CAPTURE, vf, props.pixelFormat,
+				   standard, rp);
 	} else if (NTV2_INPUT_SOURCE_IS_HDMI(init_src)) {
 		HDMIWireFormat hwf = HDMIWireFormat::Unknown;
 
@@ -523,16 +424,10 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 			else if (NTV2_IS_4K_VIDEO_FORMAT(vf))
 				hwf = HDMIWireFormat::UHD_4K_YCBCR_LFR;
 		}
-		
-		// if (!FindRoutingConfigHDMI(hwf, mode,
-		// 			   NTV2_IS_FBF_RGB(props.pixelFormat),
-		// 			   props.deviceID, rc)) {
-		// 	blog(LOG_DEBUG,
-		// 	     "Could not find RoutingConfig for HDMI Wire Format!");
-		// 	return false;
-		// }
 
-		rc.FindFirstPreset(ConnectionKind::HDMI, props.deviceID, NTV2_MODE_CAPTURE, vf, props.pixelFormat, VPIDStandard_Unknown, rp);
+		rc.FindFirstPreset(ConnectionKind::HDMI, props.deviceID,
+				   NTV2_MODE_CAPTURE, vf, props.pixelFormat,
+				   VPIDStandard_Unknown, rp);
 	}
 
 	// Substitute channel placeholders for actual indices
@@ -547,7 +442,8 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 	}
 
 	NTV2XptConnections cnx;
-	ParseRouteString(route_string, cnx);
+	if (!ParseRouteString(route_string, cnx))
+		return false;
 
 	card->ApplySignalRoute(cnx, false);
 
@@ -564,9 +460,12 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 		card->SetSDIOut3GbEnable(channel, rp.flags & kEnable3GbOut);
 		card->SetSDIOut6GEnable(channel, rp.flags & kEnable6GOut);
 		card->SetSDIOut12GEnable(channel, rp.flags & kEnable12GOut);
-		card->SetSDIInLevelBtoLevelAConversion((UWord)i, rp.flags & kConvert3GIn);
-		card->SetSDIOutLevelAtoLevelBConversion((UWord)i, rp.flags & kConvert3GOut);
-		card->SetSDIOutRGBLevelAConversion((UWord)i, rp.flags & kConvert3GaRGBOut);
+		card->SetSDIInLevelBtoLevelAConversion((UWord)i,
+						       rp.flags & kConvert3GIn);
+		card->SetSDIOutLevelAtoLevelBConversion(
+			(UWord)i, rp.flags & kConvert3GOut);
+		card->SetSDIOutRGBLevelAConversion(
+			(UWord)i, rp.flags & kConvert3GaRGBOut);
 	}
 
 	// Apply Framestore settings
@@ -580,7 +479,8 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 		card->SetFrameBufferFormat(channel, props.pixelFormat);
 		card->SetTsiFrameEnable(rp.flags & kEnable4KTSI, channel);
 		card->Set4kSquaresEnable(rp.flags & kEnable4KSquares, channel);
-		card->SetQuadQuadSquaresEnable(rp.flags & kEnable8KSquares, channel);
+		card->SetQuadQuadSquaresEnable(rp.flags & kEnable8KSquares,
+					       channel);
 	}
 
 	return true;
@@ -617,19 +517,11 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 			blog(LOG_DEBUG, "Could not determine SDI Wire Format!");
 			return false;
 		}
-
-		// if (!FindRoutingConfigSDI(swf, mode,
-		// 			  NTV2_IS_FBF_RGB(props.pixelFormat),
-		// 			  props.deviceID, rc)) {
-		// 	blog(LOG_DEBUG,
-		// 	     "Could not find RoutingConfig for SDI Wire Format!");
-		// 	return false;
-		// }
-
-		rc.FindFirstPreset(ConnectionKind::SDI, props.deviceID, NTV2_MODE_DISPLAY, props.videoFormat, props.pixelFormat, VPIDStandard_Unknown, rp);
+		rc.FindFirstPreset(ConnectionKind::SDI, props.deviceID,
+				   NTV2_MODE_DISPLAY, props.videoFormat,
+				   props.pixelFormat, VPIDStandard_Unknown, rp);
 	} else if (NTV2_OUTPUT_DEST_IS_HDMI(init_dest)) {
 		HDMIWireFormat hwf = HDMIWireFormat::Unknown;
-
 		// special case devices...
 		if (props.deviceID == DEVICE_ID_TTAP_PRO) {
 			hwf = HDMIWireFormat::TTAP_PRO;
@@ -648,16 +540,9 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 				}
 			}
 		}
-
-		// if (!FindRoutingConfigHDMI(hwf, mode,
-		// 			   NTV2_IS_FBF_RGB(props.pixelFormat),
-		// 			   props.deviceID, rc)) {
-		// 	blog(LOG_DEBUG,
-		// 	     "Could not find RoutingConfig for HDMI Wire Format!");
-		// 	return false;
-		// }
-
-		rc.FindFirstPreset(ConnectionKind::HDMI, props.deviceID, NTV2_MODE_DISPLAY, props.videoFormat, props.pixelFormat, VPIDStandard_Unknown, rp);
+		rc.FindFirstPreset(ConnectionKind::HDMI, props.deviceID,
+				   NTV2_MODE_DISPLAY, props.videoFormat,
+				   props.pixelFormat, VPIDStandard_Unknown, rp);
 	}
 
 	std::string route_string = rp.route_string;
@@ -684,7 +569,9 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 	}
 
 	NTV2XptConnections cnx;
-	ParseRouteString(route_string, cnx);
+	if (!ParseRouteString(route_string, cnx))
+		return false;
+
 	card->ApplySignalRoute(cnx, false);
 
 	// Apply SDI widget settings
@@ -697,10 +584,14 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 				card->SetSDITransmitEnable(
 					channel, mode == NTV2_MODE_DISPLAY);
 			}
-			card->SetSDIOut3GEnable(channel, rp.flags & kEnable3GOut);
-			card->SetSDIOut3GbEnable(channel, rp.flags & kEnable3GbOut);
-			card->SetSDIOut6GEnable(channel, rp.flags & kEnable6GOut);
-			card->SetSDIOut12GEnable(channel, rp.flags & kEnable12GOut);
+			card->SetSDIOut3GEnable(channel,
+						rp.flags & kEnable3GOut);
+			card->SetSDIOut3GbEnable(channel,
+						 rp.flags & kEnable3GbOut);
+			card->SetSDIOut6GEnable(channel,
+						rp.flags & kEnable6GOut);
+			card->SetSDIOut12GEnable(channel,
+						 rp.flags & kEnable12GOut);
 			card->SetSDIInLevelBtoLevelAConversion(
 				(UWord)i, rp.flags & kConvert3GIn);
 			card->SetSDIOutLevelAtoLevelBConversion(
@@ -723,7 +614,8 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 		card->SetFrameBufferFormat(channel, props.pixelFormat);
 		card->SetTsiFrameEnable(rp.flags & kEnable4KTSI, channel);
 		card->Set4kSquaresEnable(rp.flags & kEnable4KSquares, channel);
-		card->SetQuadQuadSquaresEnable(rp.flags & kEnable8KSquares, channel);
+		card->SetQuadQuadSquaresEnable(rp.flags & kEnable8KSquares,
+					       channel);
 	}
 
 	return true;

@@ -770,7 +770,8 @@ void aja_source_destroy(void *data)
 	CNTV2Card *card = ajaSource->GetCard();
 	if (card) {
 		deviceID = card->GetDeviceID();
-		aja::Routing::StopSourceAudio(ajaSource->GetSourceProps(), card);
+		aja::Routing::StopSourceAudio(ajaSource->GetSourceProps(),
+					      card);
 	}
 
 	ajaSource->mVideoBuffer.Deallocate();
@@ -1043,8 +1044,8 @@ static void aja_source_update(void *data, obs_data_t *settings)
 
 	// Change capture format and restart capture thread
 	if (!initialized || want_props != ajaSource->GetSourceProps()) {
-		aja::Routing::ConfigureSourceRoute(want_props, NTV2_MODE_CAPTURE,
-					      card);
+		aja::Routing::ConfigureSourceRoute(want_props,
+						   NTV2_MODE_CAPTURE, card);
 
 		ajaSource->Deactivate();
 

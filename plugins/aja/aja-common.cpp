@@ -945,8 +945,7 @@ RasterDefinition DetermineRasterDefinition(NTV2VideoFormat vf)
 		def = RasterDefinition::UHD_4K;
 	} else if (NTV2_IS_QUAD_QUAD_FORMAT(vf)) {
 		def = RasterDefinition::UHD2_8K;
-	}
-	else {
+	} else {
 		def = RasterDefinition::Unknown;
 	}
 
