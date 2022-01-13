@@ -104,9 +104,8 @@ struct AudioOffsets {
 	ULWord bytesRead = 0;
 };
 
-static void ResetAudioBufferOffsets(CNTV2Card *card,
-				    NTV2AudioSystem audioSystem,
-				    AudioOffsets &offsets)
+static void ResetAudioOffsets(CNTV2Card *card, NTV2AudioSystem audioSystem,
+			      AudioOffsets &offsets)
 {
 	if (!card)
 		return;
@@ -174,17 +173,16 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 		     "AJASource::CaptureThread: Plugin instance is null!");
 		return;
 	}
-
-	blog(LOG_INFO,
-	     "AJASource::CaptureThread: Starting capture thread for AJA source %s",
-	     ajaSource->GetName().c_str());
-
 	auto card = ajaSource->GetCard();
 	if (!card) {
 		blog(LOG_ERROR,
 		     "AJASource::CaptureThread: Card instance is null!");
 		return;
 	}
+
+	blog(LOG_INFO,
+	     "AJASource::CaptureThread: Starting capture thread for AJA Source %s",
+	     ajaSource->GetName().c_str());
 
 	auto sourceProps = ajaSource->GetSourceProps();
 	auto inputSource = sourceProps.InitialInputSource();
@@ -200,58 +198,90 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 	// etc...
 	ULWord currentCardFrame = (uint32_t)channel * 2;
 	card->WaitForInputFieldID(NTV2_FIELD0, channel);
-
 	currentCardFrame ^= 1;
-
 	card->SetInputFrame(channel, currentCardFrame);
 
 	AudioOffsets offsets;
-	ResetAudioBufferOffsets(card, audioSystem, offsets);
+	ResetAudioOffsets(card, audioSystem, offsets);
 
 	obs_data_t *settings = obs_source_get_settings(ajaSource->mSource);
-
+	NTV2VideoFormat videoFormat = NTV2_FORMAT_UNKNOWN;
+	NTV2PixelFormat pixelFormat = kDefaultAJAPixelFormat;
+	bool routed = false;
 	while (ajaSource->IsCapturing()) {
+		sourceProps = ajaSource->GetSourceProps();
+		videoFormat = sourceProps.videoFormat;
+		pixelFormat = sourceProps.pixelFormat;
+		NTV2VideoFormat wireVideoFormat = NTV2_FORMAT_UNKNOWN;
+		NTV2PixelFormat wirePixelFormat = NTV2_FBF_INVALID;
+		auto ioSelection = sourceProps.ioSelect;
+		bool audioOverrun = false;
+
 		if (card->GetModelName() == "(Not Found)") {
 			os_sleep_ms(250);
 			obs_source_update(ajaSource->mSource, settings);
 			break;
 		}
 
-		auto videoFormat = sourceProps.videoFormat;
-		auto pixelFormat = sourceProps.pixelFormat;
-		auto ioSelection = sourceProps.ioSelect;
-		bool audioOverrun = false;
-
 		card->WaitForInputFieldID(NTV2_FIELD0, channel);
 		currentCardFrame ^= 1;
 
-		// Card format detection -- restarts capture thread via aja_source_update callback
-		auto newVideoFormat = card->GetInputVideoFormat(
-			inputSource, aja::Is3GLevelB(card, channel));
-		if (newVideoFormat == NTV2_FORMAT_UNKNOWN) {
-			blog(LOG_DEBUG,
-			     "AJASource::CaptureThread: Video format unknown!");
-			ajaSource->GenerateTestPattern(videoFormat, pixelFormat,
-						       NTV2_TestPatt_Black);
-			os_sleep_ms(250);
-			continue;
+		if (sourceProps.autoDetect) {
+			ajaSource->ReadWireFormats(sourceProps.deviceID,
+				sourceProps.ioSelect, wireVideoFormat,
+				wirePixelFormat, sourceProps.vpids);
+			// Card format detection -- restarts capture thread via aja_source_update callback
+			// wireVideoFormat = card->GetInputVideoFormat(
+			// 	inputSource, aja::Is3GLevelB(card, channel));
+			if (wireVideoFormat == NTV2_FORMAT_UNKNOWN) {
+				blog(LOG_DEBUG,
+					"AJASource::CaptureThread: Unknown video format!");
+				ajaSource->GenerateTestPattern(videoFormat, pixelFormat,
+								NTV2_TestPatt_Black);
+				os_sleep_ms(250);
+				continue;
+			}
+			// wantVideoFormat = aja::HandleSpecialCaseFormats(
+			// 	ioSelection, wantVideoFormat, sourceProps.deviceID);
+			videoFormat = wireVideoFormat;
+			pixelFormat = wirePixelFormat;
+		} else {
+			videoFormat = sourceProps.videoFormat;
+			pixelFormat = sourceProps.pixelFormat;
 		}
 
-		newVideoFormat = aja::HandleSpecialCaseFormats(
-			ioSelection, newVideoFormat, sourceProps.deviceID);
-
-		if (sourceProps.autoDetect && (videoFormat != newVideoFormat)) {
-			blog(LOG_INFO,
-			     "AJASource::CaptureThread: New Video Format detected! Triggering 'aja_source_update' callback and returning...");
-			blog(LOG_INFO,
-			     "AJASource::CaptureThread: Current Video Format: %s, | Want Video Format: %s",
-			     NTV2VideoFormatToString(videoFormat, true).c_str(),
-			     NTV2VideoFormatToString(newVideoFormat, true)
-				     .c_str());
-			os_sleep_ms(250);
-			obs_source_update(ajaSource->mSource, settings);
-			break;
+		if (videoFormat != sourceProps.videoFormat && videoFormat != NTV2_FORMAT_UNKNOWN) {
+			sourceProps.videoFormat = videoFormat;
+			routed = false;
 		}
+		if (pixelFormat != sourceProps.pixelFormat && pixelFormat != NTV2_FBF_INVALID) {
+			sourceProps.pixelFormat = pixelFormat;
+			routed = false;
+		}
+
+		if (!routed) {
+			ajaSource->SetSourceProps(sourceProps);
+			ajaSource->ResetVideoBuffer(sourceProps.videoFormat,
+							sourceProps.pixelFormat);
+			aja::Routing::StartSourceAudio(sourceProps, card);
+			aja::Routing::ConfigureSourceRoute(sourceProps,
+							NTV2_MODE_CAPTURE, card);
+			routed = true;
+		}
+
+		blog(LOG_DEBUG, "User Video Format: %s | Wire Video Format: %s",
+			NTV2VideoFormatToString(videoFormat, true).c_str(),
+			NTV2VideoFormatToString(wireVideoFormat, true).c_str());
+
+		// if (sourceProps.autoDetect && (videoFormat != wantVideoFormat)) {
+		// 	blog(LOG_INFO,
+		// 	     "AJASource::CaptureThread: New video format detected! Current: %s | Detected: %s",
+		// 	     NTV2VideoFormatToString(videoFormat, true).c_str(),
+		// 	     NTV2VideoFormatToString(wantVideoFormat, true).c_str());
+		// 	os_sleep_ms(250);
+		// 	obs_source_update(ajaSource->mSource, settings);
+		// 	break;
+		// }
 
 		card->ReadAudioLastIn(offsets.currentAddress, audioSystem);
 		offsets.currentAddress &= ~0x3; // Force DWORD alignment
@@ -262,12 +292,7 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 
 			if (offsets.bytesRead >
 			    ajaSource->mAudioBuffer.GetByteCount()) {
-				blog(LOG_DEBUG,
-				     "AJASource::CaptureThread: Audio overrun (1)! Buffer Size: %d, Bytes Captured: %d",
-				     ajaSource->mAudioBuffer.GetByteCount(),
-				     offsets.bytesRead);
-				ResetAudioBufferOffsets(card, audioSystem,
-							offsets);
+				ResetAudioOffsets(card, audioSystem, offsets);
 				audioOverrun = true;
 			}
 
@@ -291,12 +316,7 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 
 			if (offsets.bytesRead >
 			    ajaSource->mAudioBuffer.GetByteCount()) {
-				blog(LOG_DEBUG,
-				     "AJASource::CaptureThread: Audio overrun (2)! Buffer Size: %d, Bytes Captured: %d",
-				     ajaSource->mAudioBuffer.GetByteCount(),
-				     offsets.bytesRead);
-				ResetAudioBufferOffsets(card, audioSystem,
-							offsets);
+				ResetAudioOffsets(card, audioSystem, offsets);
 				audioOverrun = true;
 			}
 		} else {
@@ -304,12 +324,7 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 				offsets.currentAddress - offsets.lastAddress;
 			if (offsets.bytesRead >
 			    ajaSource->mAudioBuffer.GetByteCount()) {
-				blog(LOG_DEBUG,
-				     "AJASource::CaptureThread: Audio overrun (3)! Buffer Size: %d, Bytes Captured: %d",
-				     ajaSource->mAudioBuffer.GetByteCount(),
-				     offsets.bytesRead);
-				ResetAudioBufferOffsets(card, audioSystem,
-							offsets);
+				ResetAudioOffsets(card, audioSystem, offsets);
 				audioOverrun = true;
 			}
 			if (!audioOverrun) {
@@ -336,7 +351,7 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 
 		if (ajaSource->mVideoBuffer.GetByteCount() == 0) {
 			blog(LOG_DEBUG,
-			     "AJASource::CaptureThread: 0 bytes in video buffer! Something went wrong!");
+			     "AJASource::CaptureThread: Zero bytes in video buffer. Something went wrong!");
 			continue;
 		}
 
@@ -344,9 +359,10 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 				   ajaSource->mVideoBuffer.GetByteCount());
 
 		auto actualVideoFormat = videoFormat;
-		if (aja::Is3GLevelB(card, channel))
+		if (aja::Is3GLevelB(card, channel)) {
 			actualVideoFormat = aja::GetLevelAFormatForLevelBFormat(
 				videoFormat);
+		}
 
 		NTV2FormatDesc fd(actualVideoFormat, pixelFormat);
 		struct obs_source_frame2 obsFrame;
@@ -359,30 +375,24 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 		obsFrame.data[0] = reinterpret_cast<uint8_t *>(
 			(ULWord *)ajaSource->mVideoBuffer.GetHostPointer());
 		obsFrame.linesize[0] = fd.GetBytesPerRow();
-
 		video_format_get_parameters(VIDEO_CS_DEFAULT, VIDEO_RANGE_FULL,
 					    obsFrame.color_matrix,
 					    obsFrame.color_range_min,
 					    obsFrame.color_range_max);
-
 		obs_source_output_video2(ajaSource->mSource, &obsFrame);
-
 		card->SetInputFrame(channel, currentCardFrame);
 	}
 
 	blog(LOG_INFO, "AJASource::Capturethread: Thread loop stopped");
-
 	ajaSource->GenerateTestPattern(sourceProps.videoFormat,
 				       sourceProps.pixelFormat,
 				       NTV2_TestPatt_Black);
-
 	obs_data_release(settings);
 }
 
 void AJASource::Deactivate()
 {
 	SetCapturing(false);
-
 	if (mCaptureThread) {
 		if (mCaptureThread->Active()) {
 			mCaptureThread->Stop();
@@ -448,11 +458,13 @@ void AJASource::SetDeviceIndex(uint32_t index)
 //
 void AJASource::SetSourceProps(const SourceProps &props)
 {
+	std::lock_guard<std::mutex> lock(mMutex);
 	mSourceProps = props;
 }
 
 SourceProps AJASource::GetSourceProps() const
 {
+	std::lock_guard<std::mutex> lock(mMutex);
 	return mSourceProps;
 }
 
@@ -898,9 +910,8 @@ static void aja_source_update(void *data, obs_data_t *settings)
 	}
 	ajaSource->SetCard(cardEntry->GetCard());
 
-	SourceProps curr_props = ajaSource->GetSourceProps();
-
 	// Release Channels from previous card if card ID changes
+	SourceProps curr_props = ajaSource->GetSourceProps();
 	if (wantCardID != currentCardID) {
 		auto prevCardEntry = cardManager.GetCardEntry(currentCardID);
 		if (prevCardEntry) {
@@ -989,49 +1000,49 @@ static void aja_source_update(void *data, obs_data_t *settings)
 	}
 
 	// Read SDI video payload IDs (VPID) used for helping to determine the wire format
-	NTV2VideoFormat new_vf = want_props.videoFormat;
-	NTV2PixelFormat new_pf = want_props.pixelFormat;
-	if (!ajaSource->ReadWireFormats(want_props.deviceID,
-					want_props.ioSelect, new_vf, new_pf,
-					want_props.vpids)) {
-		blog(LOG_ERROR, "aja_source_update: ReadWireFormats failed!");
-		cardEntry->ReleaseInputSelection(want_props.ioSelect,
-						 curr_props.deviceID,
-						 ajaSource->GetName());
-		return;
-	}
+	// NTV2VideoFormat new_vf = want_props.videoFormat;
+	// NTV2PixelFormat new_pf = want_props.pixelFormat;
+	// if (!ajaSource->ReadWireFormats(want_props.deviceID,
+	// 				want_props.ioSelect, new_vf, new_pf,
+	// 				want_props.vpids)) {
+	// 	blog(LOG_ERROR, "aja_source_update: ReadWireFormats failed!");
+	// 	cardEntry->ReleaseInputSelection(want_props.ioSelect,
+	// 					 curr_props.deviceID,
+	// 					 ajaSource->GetName());
+	// 	return;
+	// }
 
-	// Set auto-detected formats
-	if ((int32_t)vf_select == kAutoDetect)
-		want_props.videoFormat = new_vf;
-	if ((int32_t)pf_select == kAutoDetect)
-		want_props.pixelFormat = new_pf;
+	// // Set auto-detected formats
+	// if ((int32_t)vf_select == kAutoDetect)
+	// 	want_props.videoFormat = new_vf;
+	// if ((int32_t)pf_select == kAutoDetect)
+	// 	want_props.pixelFormat = new_pf;
 
-	if (want_props.videoFormat == NTV2_FORMAT_UNKNOWN ||
-	    want_props.pixelFormat == NTV2_FBF_INVALID) {
-		blog(LOG_ERROR,
-		     "aja_source_update: Unknown video/pixel format(s): %s / %s",
-		     NTV2VideoFormatToString(want_props.videoFormat).c_str(),
-		     NTV2FrameBufferFormatToString(want_props.pixelFormat)
-			     .c_str());
-		cardEntry->ReleaseInputSelection(want_props.ioSelect,
-						 curr_props.deviceID,
-						 ajaSource->GetName());
-		return;
-	}
+	// if (want_props.videoFormat == NTV2_FORMAT_UNKNOWN ||
+	//     want_props.pixelFormat == NTV2_FBF_INVALID) {
+	// 	blog(LOG_ERROR,
+	// 	     "aja_source_update: Unknown video/pixel format(s): %s / %s",
+	// 	     NTV2VideoFormatToString(want_props.videoFormat).c_str(),
+	// 	     NTV2FrameBufferFormatToString(want_props.pixelFormat)
+	// 		     .c_str());
+	// 	cardEntry->ReleaseInputSelection(want_props.ioSelect,
+	// 					 curr_props.deviceID,
+	// 					 ajaSource->GetName());
+	// 	return;
+	// }
 
-	// Change capture format and restart capture thread
-	if (!initialized || want_props != ajaSource->GetSourceProps()) {
-		aja::Routing::ConfigureSourceRoute(want_props,
-						   NTV2_MODE_CAPTURE, card);
-		ajaSource->Deactivate();
-		initialized = true;
-	}
+	// // Change capture format and restart capture thread
+	// if (!initialized || want_props != ajaSource->GetSourceProps()) {
+	// 	aja::Routing::ConfigureSourceRoute(want_props,
+	// 					   NTV2_MODE_CAPTURE, card);
+	// 	// ajaSource->Deactivate();
+	// 	initialized = true;
+	// }
 
 	ajaSource->SetSourceProps(want_props);
-	ajaSource->ResetVideoBuffer(want_props.videoFormat,
-				    want_props.pixelFormat);
-	aja::Routing::StartSourceAudio(want_props, card);
+	// ajaSource->ResetVideoBuffer(want_props.videoFormat,
+	// 			    want_props.pixelFormat);
+	// aja::Routing::StartSourceAudio(want_props, card);
 	card->SetReference(NTV2_REFERENCE_FREERUN);
 	ajaSource->Activate(true);
 }

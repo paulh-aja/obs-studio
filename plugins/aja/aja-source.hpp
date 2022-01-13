@@ -76,7 +76,7 @@ private:
 	NTV2TestPatternBuffer mTestPattern;
 
 	AJAThread *mCaptureThread;
-	std::mutex mMutex;
+	mutable std::mutex mMutex;
 
 	obs_source_t *mSource;
 };
