@@ -350,6 +350,16 @@ bool WidgetInputSocket::Find(const std::string &name, NTV2Channel channel,
 			     int32_t datastream, WidgetInputSocket &inp)
 {
 	for (const auto &in : kWidgetInputSockets) {
+		if (AJA_NTV2_SDK_VERSION_MAJOR == 16 &&
+		    AJA_NTV2_SDK_VERSION_MINOR == 1) {
+			if (name == in.name && channel == NTV2_CHANNEL5 &&
+			    in.widget_id == NTV2_WgtSDIMonOut1 &&
+			    datastream == in.datastream_index) {
+				inp = in;
+				return true;
+			}
+		}
+
 		if (name == in.name &&
 		    channel == CNTV2SignalRouter::WidgetIDToChannel(
 				       in.widget_id) &&
