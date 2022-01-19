@@ -385,35 +385,27 @@ bool CardEntry::AcquireOutputSelection(IOSelection io, NTV2DeviceID id,
 	aja::IOSelectionToOutputDests(io, outputDests);
 
 	// Handle acquiring special case outputs --
-	// HDMI Monitor uses framestore 4
+	NTV2Channel specialChannel = NTV2_CHANNEL_INVALID;
 	if (aja::CardCanDoHDMIMonitorOutput(id) &&
+	    // HDMI Monitor output on io4K/io4K+/etc. uses framestore 4.
 	    io == IOSelection::HDMIMonitorOut) {
-		NTV2Channel hdmiMonChannel = NTV2_CHANNEL4;
-		if (AcquireChannel(hdmiMonChannel, NTV2_MODE_DISPLAY, owner)) {
-			blog(LOG_DEBUG, "Output %s acquired channel %s",
-			     owner.c_str(),
-			     NTV2ChannelToString(hdmiMonChannel).c_str());
-			acquiredChannels.push_back(hdmiMonChannel);
-		} else {
-			blog(LOG_DEBUG,
-			     "Output %s could not acquire channel %s",
-			     owner.c_str(),
-			     NTV2ChannelToString(hdmiMonChannel).c_str());
-		}
+		specialChannel = NTV2_CHANNEL4;
 	} else if (aja::CardCanDoSDIMonitorOutput(id) &&
 		   io == IOSelection::SDI5) {
-		// SDI Monitor on io4K/io4K+/etc. uses framestore 4
-		NTV2Channel sdiMonChannel = NTV2_CHANNEL4;
-		if (AcquireChannel(sdiMonChannel, NTV2_MODE_DISPLAY, owner)) {
+		// SDI Monitor output on io4K/io4K+/etc. uses framestore 4.
+		specialChannel = NTV2_CHANNEL4;
+	}
+	if (specialChannel != NTV2_CHANNEL_INVALID) {
+		if (AcquireChannel(specialChannel, NTV2_MODE_DISPLAY, owner)) {
+			acquiredChannels.push_back(specialChannel);
 			blog(LOG_DEBUG, "Output %s acquired channel %s",
 			     owner.c_str(),
-			     NTV2ChannelToString(sdiMonChannel).c_str());
-			acquiredChannels.push_back(sdiMonChannel);
+			     NTV2ChannelToString(specialChannel).c_str());
 		} else {
 			blog(LOG_DEBUG,
 			     "Output %s could not acquire channel %s",
 			     owner.c_str(),
-			     NTV2ChannelToString(sdiMonChannel).c_str());
+			     NTV2ChannelToString(specialChannel).c_str());
 		}
 	} else {
 		// Handle acquiring all other channels
