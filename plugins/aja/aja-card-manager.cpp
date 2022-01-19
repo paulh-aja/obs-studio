@@ -266,22 +266,21 @@ bool CardEntry::ReleaseChannel(NTV2Channel chan, NTV2Mode mode,
 bool CardEntry::InputSelectionReady(IOSelection io, NTV2DeviceID id,
 				    const std::string &owner) const
 {
-	UNUSED_PARAMETER(id);
-
 	NTV2InputSourceSet inputSources;
 	aja::IOSelectionToInputSources(io, inputSources);
-
-	if (inputSources.size() > 0) {
-		size_t channelsReady = 0;
-
-		for (auto &&src : inputSources) {
-			auto channel = NTV2InputSourceToChannel(src);
-			if (ChannelReady(channel, owner))
-				channelsReady++;
+	if (id == DEVICE_ID_KONA1 && io == IOSelection::SDI1) {
+		return true;
+	} else {
+		if (inputSources.size() > 0) {
+			size_t channelsReady = 0;
+			for (auto &&src : inputSources) {
+				auto channel = NTV2InputSourceToChannel(src);
+				if (ChannelReady(channel, owner))
+					channelsReady++;
+			}
+			if (channelsReady == inputSources.size())
+				return true;
 		}
-
-		if (channelsReady == inputSources.size())
-			return true;
 	}
 
 	return false;
@@ -303,6 +302,8 @@ bool CardEntry::OutputSelectionReady(IOSelection io, NTV2DeviceID id,
 		   io == IOSelection::SDI5) {
 		NTV2Channel sdiMonChannel = NTV2_CHANNEL4;
 		return ChannelReady(sdiMonChannel, owner);
+	} else if (id == DEVICE_ID_KONA1 && io == IOSelection::SDI1) {
+		return true;
 	} else {
 		NTV2OutputDestinations outputDests;
 		aja::IOSelectionToOutputDests(io, outputDests);
@@ -394,6 +395,11 @@ bool CardEntry::AcquireOutputSelection(IOSelection io, NTV2DeviceID id,
 		   io == IOSelection::SDI5) {
 		// SDI Monitor output on io4K/io4K+/etc. uses framestore 4.
 		specialChannel = NTV2_CHANNEL4;
+	} else if (id == DEVICE_ID_KONA1 && io == IOSelection::SDI1) {
+		// Kona1 has one SDI spigot dedicated to input and another
+		// spigot dedicated to output. Both are referred to as "SDI1"
+		// but capture uses framestore 1 and output uses framestore 2.
+		specialChannel = NTV2_CHANNEL2;
 	}
 	if (specialChannel != NTV2_CHANNEL_INVALID) {
 		if (AcquireChannel(specialChannel, NTV2_MODE_DISPLAY, owner)) {
