@@ -81,7 +81,6 @@ enum class HDMIWireFormat {
 	UHD_4K_YCBCR_HFR = 6,
 	UHD_4K_RGB_LFR = 7,
 	UHD_4K_RGB_HFR = 8,
-	TTAP_PRO = 9,
 	Unknown
 };
 
