@@ -963,7 +963,12 @@ static void aja_source_update(void *data, obs_data_t *settings)
 	want_props.sdi4kTransport = sdi_t4k_select;
 	want_props.vpids.clear();
 	want_props.deactivateWhileNotShowing = deactivateWhileNotShowing;
-	want_props.autoDetect = (int)sdi_trx_select == kAutoDetect;
+	if (aja::IsIOSelectionSDI(io_select)) {
+		want_props.autoDetect = (int)sdi_trx_select == kAutoDetect;
+	} else {
+		want_props.autoDetect = ((int)vf_select == kAutoDetect ||
+					 (int)pf_select == kAutoDetect);
+	}
 	ajaSource->SetCardID(wantCardID);
 	ajaSource->SetDeviceIndex((UWord)cardEntry->GetCardIndex());
 
