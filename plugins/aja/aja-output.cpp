@@ -869,12 +869,20 @@ bool aja_output_dest_changed(obs_properties_t *props, obs_property_t *list,
 		}
 	}
 
+	bool is_sdi = aja::IsIOSelectionSDI(io_select);
+	auto vid_fmt = static_cast<NTV2VideoFormat>(
+		obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
 	obs_property_t *sdi_trx_list =
 		obs_properties_get(props, kUIPropSDITransport.id);
+	obs_property_t *sdi_4k_trx_list =
+		obs_properties_get(props, kUIPropSDITransport4K.id);
 	obs_property_list_clear(sdi_trx_list);
+	obs_property_list_clear(sdi_4k_trx_list);
 	populate_sdi_transport_list(sdi_trx_list, io_select);
-	obs_property_set_visible(sdi_trx_list,
-				 aja::IsIOSelectionSDI(io_select));
+	populate_sdi_4k_transport_list(sdi_4k_trx_list);
+	obs_property_set_visible(sdi_trx_list, is_sdi);
+	obs_property_set_visible(sdi_4k_trx_list,
+				 is_sdi && NTV2_IS_4K_VIDEO_FORMAT(vid_fmt));
 
 	return true;
 }
