@@ -660,9 +660,7 @@ bool aja_source_device_changed(void *data, obs_properties_t *props,
 	IOSelection io_select = static_cast<IOSelection>(
 		obs_data_get_int(settings, kUIPropInput.id));
 	obs_property_list_clear(sdi_trx_list);
-	obs_property_list_add_int(sdi_trx_list, obs_module_text("Auto"),
-				  kAutoDetect);
-	populate_sdi_transport_list(sdi_trx_list, io_select);
+	populate_sdi_transport_list(sdi_trx_list, io_select, true);
 
 	obs_property_list_clear(sdi_4k_list);
 	populate_sdi_4k_transport_list(sdi_4k_list);
@@ -714,6 +712,23 @@ bool aja_io_selection_changed(void *data, obs_properties_t *props,
 
 	filter_io_selection_input_list(cardID, ajaSource->GetName(),
 				       io_select_list);
+
+	auto inp_sel = static_cast<IOSelection>(
+		obs_data_get_int(settings, kUIPropInput.id));
+	bool is_sdi = aja::IsIOSelectionSDI(inp_sel);
+	auto vid_fmt = static_cast<NTV2VideoFormat>(
+		obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
+	obs_property_t *sdi_trx_list =
+		obs_properties_get(props, kUIPropSDITransport.id);
+	obs_property_t *sdi_4k_trx_list =
+		obs_properties_get(props, kUIPropSDITransport4K.id);
+	obs_property_list_clear(sdi_trx_list);
+	obs_property_list_clear(sdi_4k_trx_list);
+	populate_sdi_transport_list(sdi_trx_list, inp_sel, true);
+	populate_sdi_4k_transport_list(sdi_4k_trx_list);
+	obs_property_set_visible(sdi_trx_list, is_sdi);
+	obs_property_set_visible(sdi_4k_trx_list,
+				 is_sdi && NTV2_IS_4K_VIDEO_FORMAT(vid_fmt));
 
 	return true;
 }
@@ -948,8 +963,7 @@ static void aja_source_update(void *data, obs_data_t *settings)
 	want_props.sdi4kTransport = sdi_t4k_select;
 	want_props.vpids.clear();
 	want_props.deactivateWhileNotShowing = deactivateWhileNotShowing;
-	want_props.autoDetect = ((int32_t)vf_select == kAutoDetect ||
-				 (int32_t)pf_select == kAutoDetect);
+	want_props.autoDetect = (int)sdi_trx_select == kAutoDetect;
 	ajaSource->SetCardID(wantCardID);
 	ajaSource->SetDeviceIndex((UWord)cardEntry->GetCardIndex());
 

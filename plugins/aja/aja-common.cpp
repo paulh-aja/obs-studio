@@ -204,8 +204,13 @@ void populate_pixel_format_list(NTV2DeviceID deviceID, obs_property_t *list)
 	}
 }
 
-void populate_sdi_transport_list(obs_property_t *list, IOSelection io)
+void populate_sdi_transport_list(obs_property_t *list, IOSelection io,
+				 bool capture)
 {
+	if (capture) {
+		obs_property_list_add_int(list, obs_module_text("Auto"),
+					  kAutoDetect);
+	}
 	for (int i = 0; i < (int)SDITransport::Unknown; i++) {
 		SDITransport sdi_trx = static_cast<SDITransport>(i);
 		obs_property_list_add_int(

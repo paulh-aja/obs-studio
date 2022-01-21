@@ -44,7 +44,8 @@ populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 			   NTV2VideoFormat genlockFormat = NTV2_FORMAT_UNKNOWN);
 extern void populate_pixel_format_list(NTV2DeviceID deviceID,
 				       obs_property_t *list);
-extern void populate_sdi_transport_list(obs_property_t *list, IOSelection io);
+extern void populate_sdi_transport_list(obs_property_t *list, IOSelection io,
+					bool capture = false);
 extern void populate_sdi_4k_transport_list(obs_property_t *list);
 extern bool aja_video_format_changed(obs_properties_t *props,
 				     obs_property_t *list,
