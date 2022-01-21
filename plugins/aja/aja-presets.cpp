@@ -49,6 +49,20 @@ void RoutingConfigurator::build_preset_table()
 		  {},
 		  true,
 		  false}},
+		{"HDMI_HD_RGB_HFR_RGB_Capture",
+		 {"HDMI_HD_RGB_HFR_RGB_Capture",
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_CAPTURE,
+		  RasterDefinition::HD,
+		  HDMIWireFormat::HD_RGB_HFR,
+		  VPIDStandard_Unknown,
+		  1,
+		  1,
+		  0,
+		  "hdmi[{ch1}][0]->fb[{ch1}][0];",
+		  {},
+		  true,
+		  false}},
 		/*
         * HDMI RGB Display
         */
@@ -66,8 +80,22 @@ void RoutingConfigurator::build_preset_table()
 		  {},
 		  true,
 		  false}},
-		{"HDMI_HD_RGB_LFR_RGB_Display (TTap Pro)",
-		 {"HDMI_HD_RGB_LFR_RGB_Display (TTap Pro)",
+		{"HDMI_HD_RGB_HFR_RGB_Display",
+		 {"HDMI_HD_RGB_HFR_RGB_Display",
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_DISPLAY,
+		  RasterDefinition::HD,
+		  HDMIWireFormat::HD_RGB_HFR,
+		  VPIDStandard_Unknown,
+		  1,
+		  1,
+		  0,
+		  "fb[{ch1}][0]->hdmi[0][0];",
+		  {},
+		  true,
+		  false}},
+		{"HDMI_RGB_LFR_RGB_Display (TTap Pro)",
+		 {"HDMI_RGB_LFR_RGB_Display (TTap Pro)",
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::HD,
@@ -75,9 +103,28 @@ void RoutingConfigurator::build_preset_table()
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
-		  0,
-		  "fb[{ch1}][0]->sdi[{ch1}][0];"
-		  "fb[{ch1}][0]->hdmi[{ch1}][0];",
+		  kEnable3GOut,
+		  "fb[{ch1}][2]->dlo[{ch1}][0];"
+		  "dlo[{ch1}][0]->sdi[{ch1}][0];"
+		  "dlo[{ch1}][1]->sdi[{ch1}][1];"
+		  "fb[{ch1}][2]->hdmi[{ch1}][0];",
+		  {DEVICE_ID_TTAP_PRO},
+		  true,
+		  false}},
+		{"HDMI_RGB_HFR_RGB_Display (TTap Pro)",
+		 {"HDMI_RGB_HFR_RGB_Display (TTap Pro)",
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_DISPLAY,
+		  RasterDefinition::HD,
+		  HDMIWireFormat::HD_RGB_HFR,
+		  VPIDStandard_Unknown,
+		  1,
+		  1,
+		  kConvert3GaRGBOut,
+		  "fb[{ch1}][2]->dlo[{ch1}][0];"
+		  "dlo[{ch1}][0]->sdi[{ch1}][0];"
+		  "dlo[{ch1}][1]->sdi[{ch1}][1];"
+		  "fb[{ch1}][2]->hdmi[{ch1}][0];",
 		  {DEVICE_ID_TTAP_PRO},
 		  true,
 		  false}},
@@ -115,8 +162,8 @@ void RoutingConfigurator::build_preset_table()
 		  {},
 		  false,
 		  false}},
-		{"HDMI_HD_YCBCR_LFR_YCbCr_Display (TTap Pro)",
-		 {"HDMI_HD_YCBCR_LFR_YCbCr_Display (TTap Pro)",
+		{"HDMI_HD_LFR_YCbCr_Display (TTap Pro)",
+		 {"HDMI_HD_LFR_YCbCr_Display (TTap Pro)",
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::HD,
@@ -125,6 +172,51 @@ void RoutingConfigurator::build_preset_table()
 		  1,
 		  1,
 		  0,
+		  "fb[{ch1}][0]->sdi[{ch1}][0];"
+		  "fb[{ch1}][0]->hdmi[{ch1}][0];",
+		  {DEVICE_ID_TTAP_PRO},
+		  false,
+		  false}},
+		{"HDMI_HD_HFR_YCbCr_Display (TTap Pro)",
+		 {"HDMI_HD_HFR_YCbCr_Display (TTap Pro)",
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_DISPLAY,
+		  RasterDefinition::HD,
+		  HDMIWireFormat::HD_YCBCR_HFR,
+		  VPIDStandard_Unknown,
+		  1,
+		  1,
+		  kEnable3GOut,
+		  "fb[{ch1}][0]->sdi[{ch1}][0];"
+		  "fb[{ch1}][0]->hdmi[{ch1}][0];",
+		  {DEVICE_ID_TTAP_PRO},
+		  false,
+		  false}},
+		{"HDMI_UHD_4K_LFR_YCbCr_Display (TTap Pro)",
+		 {"HDMI_UHD_4K_LFR_YCbCr_Display (TTap Pro)",
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_DISPLAY,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::UHD_4K_YCBCR_LFR,
+		  VPIDStandard_Unknown,
+		  1,
+		  1,
+		  kEnable4KTSI | kEnable6GOut,
+		  "fb[{ch1}][0]->sdi[{ch1}][0];"
+		  "fb[{ch1}][0]->hdmi[{ch1}][0];",
+		  {DEVICE_ID_TTAP_PRO},
+		  false,
+		  false}},
+		{"HDMI_UHD_4K_HFR_YCbCr_Display (TTap Pro)",
+		 {"HDMI_UHD_4K_HFR_YCbCr_Display (TTap Pro)",
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_DISPLAY,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::UHD_4K_YCBCR_HFR,
+		  VPIDStandard_Unknown,
+		  1,
+		  1,
+		  kEnable4KTSI | kEnable12GOut,
 		  "fb[{ch1}][0]->sdi[{ch1}][0];"
 		  "fb[{ch1}][0]->hdmi[{ch1}][0];",
 		  {DEVICE_ID_TTAP_PRO},
@@ -385,18 +477,99 @@ void RoutingConfigurator::build_preset_table()
 		  {},
 		  true,
 		  false}},
-		// TODO(paulh): Find out the proper settings for this route
-		// { "UHD4K_ST2018_6G_Squares_2SI_RGB_Capture", {
-		//     "UHD4K_ST2018_6G_Squares_2SI_RGB_Capture",
-		//     ConnectionKind::SDI,
-		//     NTV2_MODE_CAPTURE,
-		//     2, 2,
-		//     kEnable6GOut,
-		//     "",
-		//     {},
-		//     RasterDefinition::UHD_4K,
-		//     HDMIWireFormat::Unknown,
-		//     VPIDStandard_2160_Single_6Gb, true, false}},
+
+		/////////////////////////////////
+		{"UHD4K_ST2018_6G_Squares_2SI_RGB_Capture",
+		 {"UHD4K_ST2018_6G_Squares_2SI_RGB_Capture",
+		  ConnectionKind::SDI,
+		  NTV2_MODE_CAPTURE,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::Unknown,
+		  VPIDStandard_2160_Single_6Gb,
+		  1,
+		  1,
+		  kEnable4KTSI,
+		  "sdi[{ch1}][0]->dli[{ch1}][0];"
+		  "sdi[{ch1}][1]->dli[{ch1}][1];"
+		  "dli[{ch1}][0]->fb[{ch1}][0];",
+		  {},
+		  true,
+		  false}},
+		{"UHD4K_ST2018_6G_Squares_2SI_RGB_Capture (Kona5/io4K+)",
+		 {"UHD4K_ST2018_6G_Squares_2SI_RGB_Capture (Kona5/io4K+)",
+		  ConnectionKind::SDI,
+		  NTV2_MODE_CAPTURE,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::Unknown,
+		  VPIDStandard_2160_Single_6Gb,
+		  4,
+		  4,
+		  kEnable4KTSI,
+		  "sdi[{ch1}][0]->dli[{ch1}][0];"
+		  "sdi[{ch1}][1]->dli[{ch1}][1];"
+		  "sdi[{ch2}][0]->dli[{ch2}][0];"
+		  "sdi[{ch2}][1]->dli[{ch2}][1];"
+		  "sdi[{ch3}][0]->dli[{ch3}][0];"
+		  "sdi[{ch3}][1]->dli[{ch3}][1];"
+		  "sdi[{ch4}][0]->dli[{ch4}][0];"
+		  "sdi[{ch4}][1]->dli[{ch4}][1];"
+		  "dli[{ch1}][0]->tsi[{ch1}][0];"
+		  "dli[{ch2}][0]->tsi[{ch1}][1];"
+		  "dli[{ch3}][0]->tsi[{ch2}][0];"
+		  "dli[{ch4}][0]->tsi[{ch2}][1];"
+		  "tsi[{ch1}][2]->fb[{ch1}][0];"
+		  "tsi[{ch1}][3]->fb[{ch1}][1];"
+		  "tsi[{ch2}][2]->fb[{ch2}][0];"
+		  "tsi[{ch2}][3]->fb[{ch2}][1];",
+		  {DEVICE_ID_KONA5, DEVICE_ID_IO4KPLUS},
+		  true,
+		  true}},
+		{"UHD4K_ST2018_12G_Squares_2SI_RGB_Capture",
+		 {"UHD4K_ST2018_12G_Squares_2SI_RGB_Capture",
+		  ConnectionKind::SDI,
+		  NTV2_MODE_CAPTURE,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::Unknown,
+		  VPIDStandard_2160_Single_12Gb,
+		  1,
+		  1,
+		  kEnable4KTSI,
+		  "sdi[{ch1}][0]->dli[{ch1}][0];"
+		  "sdi[{ch1}][1]->dli[{ch1}][1];"
+		  "dli[{ch1}][0]->fb[{ch1}][0];",
+		  {},
+		  true,
+		  false}},
+		{"UHD4K_ST2018_12G_Squares_2SI_RGB_Capture (Kona5/io4K+)",
+		 {"UHD4K_ST2018_12G_Squares_2SI_RGB_Capture (Kona5/io4K+)",
+		  ConnectionKind::SDI,
+		  NTV2_MODE_CAPTURE,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::Unknown,
+		  VPIDStandard_2160_Single_12Gb,
+		  4,
+		  4,
+		  kEnable4KTSI,
+		  "sdi[{ch1}][0]->dli[{ch1}][0];"
+		  "sdi[{ch1}][1]->dli[{ch1}][1];"
+		  "sdi[{ch2}][0]->dli[{ch2}][0];"
+		  "sdi[{ch2}][1]->dli[{ch2}][1];"
+		  "sdi[{ch3}][0]->dli[{ch3}][0];"
+		  "sdi[{ch3}][1]->dli[{ch3}][1];"
+		  "sdi[{ch4}][0]->dli[{ch4}][0];"
+		  "sdi[{ch4}][1]->dli[{ch4}][1];"
+		  "dli[{ch1}][0]->tsi[{ch1}][0];"
+		  "dli[{ch2}][0]->tsi[{ch1}][1];"
+		  "dli[{ch3}][0]->tsi[{ch2}][0];"
+		  "dli[{ch4}][0]->tsi[{ch2}][1];"
+		  "tsi[{ch1}][2]->fb[{ch1}][0];"
+		  "tsi[{ch1}][3]->fb[{ch1}][1];"
+		  "tsi[{ch2}][2]->fb[{ch2}][0];"
+		  "tsi[{ch2}][3]->fb[{ch2}][1];",
+		  {DEVICE_ID_KONA5, DEVICE_ID_IO4KPLUS},
+		  true,
+		  true}},
+		/////////////////////////////////
 		/*
         * SDI RGB Display
         */
@@ -1496,6 +1669,7 @@ bool RoutingConfigurator::FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
 					  NTV2Mode mode, NTV2VideoFormat vf,
 					  NTV2PixelFormat pf,
 					  VPIDStandard standard,
+					  HDMIWireFormat hwf,
 					  RoutingPreset &preset)
 {
 	if (NTV2DeviceCanDoVideoFormat(id, vf) &&
@@ -1507,7 +1681,8 @@ bool RoutingConfigurator::FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
 			if (p.second.kind == kind && p.second.mode == mode &&
 			    p.second.raster_def == rd &&
 			    p.second.is_rgb == is_rgb &&
-			    p.second.vpid_standard == standard) {
+			    p.second.vpid_standard == standard &&
+			    p.second.hdmi_wire_format == hwf) {
 				query.push_back(p);
 			}
 		}

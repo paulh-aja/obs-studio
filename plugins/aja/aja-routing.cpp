@@ -6,6 +6,7 @@
 #include <ajabase/common/common.h>
 #include <ajantv2/includes/ntv2card.h>
 #include <ajantv2/includes/ntv2devicefeatures.h>
+#include <ajantv2/includes/ntv2utils.h>
 
 #include <obs-module.h>
 
@@ -213,9 +214,11 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 	bool found_preset = false;
 	auto deviceID = props.deviceID;
 	NTV2VideoFormat vf = props.videoFormat;
-
+	bool is_hfr = NTV2_IS_HIGH_NTV2FrameRate(
+		GetNTV2FrameRateFromVideoFormat(props.videoFormat));
 	auto init_src = props.InitialInputSource();
 	auto init_channel = props.Channel();
+
 	RoutingConfigurator rc;
 	RoutingPreset rp;
 	if (NTV2_INPUT_SOURCE_IS_SDI(init_src)) {
@@ -233,7 +236,8 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 		}
 		if (!rc.FindFirstPreset(ConnectionKind::SDI, props.deviceID,
 					NTV2_MODE_CAPTURE, vf,
-					props.pixelFormat, vpidStandard, rp)) {
+					props.pixelFormat, vpidStandard,
+					HDMIWireFormat::Unknown, rp)) {
 			blog(LOG_WARNING,
 			     "No SDI capture routing preset found!");
 			return false;
@@ -241,18 +245,38 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 	} else if (NTV2_INPUT_SOURCE_IS_HDMI(init_src)) {
 		HDMIWireFormat hwf = HDMIWireFormat::Unknown;
 		if (NTV2_IS_FBF_RGB(props.pixelFormat)) {
-			if (NTV2_IS_HD_VIDEO_FORMAT(vf))
-				hwf = HDMIWireFormat::HD_RGB_LFR;
+			if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
+				if (is_hfr) {
+					hwf = HDMIWireFormat::HD_RGB_HFR;
+				} else {
+					hwf = HDMIWireFormat::HD_RGB_LFR;
+				}
+			} else if (NTV2_IS_4K_VIDEO_FORMAT(vf)) {
+				if (is_hfr) {
+					hwf = HDMIWireFormat::UHD_4K_RGB_HFR;
+				} else {
+					hwf = HDMIWireFormat::UHD_4K_RGB_LFR;
+				}
+			}
 		} else {
-			if (NTV2_IS_HD_VIDEO_FORMAT(vf))
-				hwf = HDMIWireFormat::HD_YCBCR_LFR;
-			else if (NTV2_IS_4K_VIDEO_FORMAT(vf))
-				hwf = HDMIWireFormat::UHD_4K_YCBCR_LFR;
+			if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
+				if (is_hfr) {
+					hwf = HDMIWireFormat::HD_YCBCR_HFR;
+				} else {
+					hwf = HDMIWireFormat::HD_YCBCR_LFR;
+				}
+			} else if (NTV2_IS_4K_VIDEO_FORMAT(vf)) {
+				if (is_hfr) {
+					hwf = HDMIWireFormat::UHD_4K_YCBCR_HFR;
+				} else {
+					hwf = HDMIWireFormat::UHD_4K_YCBCR_LFR;
+				}
+			}
 		}
 		if (!rc.FindFirstPreset(ConnectionKind::HDMI, props.deviceID,
 					NTV2_MODE_CAPTURE, vf,
 					props.pixelFormat, VPIDStandard_Unknown,
-					rp)) {
+					hwf, rp)) {
 			blog(LOG_WARNING,
 			     "No HDMI capture routing preset found!");
 			return false;
@@ -325,6 +349,8 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 
 	bool found_preset = false;
 	auto deviceID = props.deviceID;
+	bool is_hfr = NTV2_IS_HIGH_NTV2FrameRate(
+		GetNTV2FrameRateFromVideoFormat(props.videoFormat));
 	NTV2OutputDestinations outputDests;
 	aja::IOSelectionToOutputDests(props.ioSelect, outputDests);
 	if (outputDests.empty()) {
@@ -343,35 +369,45 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 			props.sdi4kTransport);
 		if (!rc.FindFirstPreset(ConnectionKind::SDI, props.deviceID,
 					NTV2_MODE_DISPLAY, props.videoFormat,
-					props.pixelFormat, vpidStandard, rp)) {
+					props.pixelFormat, vpidStandard,
+					HDMIWireFormat::Unknown, rp)) {
 			blog(LOG_WARNING,
 			     "No SDI output routing preset found!");
 			return false;
 		}
 	} else if (NTV2_OUTPUT_DEST_IS_HDMI(init_dest)) {
 		HDMIWireFormat hwf = HDMIWireFormat::Unknown;
-		// special case devices...
-		if (props.deviceID == DEVICE_ID_TTAP_PRO) {
-			hwf = HDMIWireFormat::TTAP_PRO;
-		} else {
-			// ...all other devices.
-			if (NTV2_IS_FBF_RGB(props.pixelFormat)) {
-				if (NTV2_IS_HD_VIDEO_FORMAT(props.videoFormat))
+		if (NTV2_IS_FBF_RGB(props.pixelFormat)) {
+			if (NTV2_IS_HD_VIDEO_FORMAT(props.videoFormat)) {
+				if (is_hfr) {
+					hwf = HDMIWireFormat::HD_RGB_HFR;
+				} else {
 					hwf = HDMIWireFormat::HD_RGB_LFR;
-			} else {
-				if (NTV2_IS_HD_VIDEO_FORMAT(
-					    props.videoFormat)) {
-					hwf = HDMIWireFormat::HD_YCBCR_LFR;
-				} else if (NTV2_IS_4K_VIDEO_FORMAT(
-						   props.videoFormat)) {
-					hwf = HDMIWireFormat::UHD_4K_YCBCR_LFR;
 				}
+			} else if (NTV2_IS_4K_VIDEO_FORMAT(props.videoFormat)) {
+				if (is_hfr) {
+					hwf = HDMIWireFormat::UHD_4K_RGB_HFR;
+				} else {
+					hwf = HDMIWireFormat::UHD_4K_RGB_LFR;
+				}
+			}
+		} else {
+			if (NTV2_IS_HD_VIDEO_FORMAT(props.videoFormat)) {
+				if (is_hfr)
+					hwf = HDMIWireFormat::HD_YCBCR_HFR;
+				else
+					hwf = HDMIWireFormat::HD_YCBCR_LFR;
+			} else if (NTV2_IS_4K_VIDEO_FORMAT(props.videoFormat)) {
+				if (is_hfr)
+					hwf = HDMIWireFormat::UHD_4K_YCBCR_HFR;
+				else
+					hwf = HDMIWireFormat::UHD_4K_YCBCR_LFR;
 			}
 		}
 		if (!rc.FindFirstPreset(ConnectionKind::HDMI, props.deviceID,
 					NTV2_MODE_DISPLAY, props.videoFormat,
 					props.pixelFormat, VPIDStandard_Unknown,
-					rp)) {
+					hwf, rp)) {
 			blog(LOG_WARNING,
 			     "No HDMI output routing preset found!");
 			return false;
@@ -424,7 +460,8 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 	card->ApplySignalRoute(cnx, false);
 
 	// Apply SDI widget settings
-	if (props.ioSelect != IOSelection::HDMIMonitorOut) {
+	if (props.ioSelect != IOSelection::HDMIMonitorOut ||
+	    props.deviceID == DEVICE_ID_TTAP_PRO) {
 		start_channel_index = GetIndexForNTV2Channel(init_channel);
 		for (uint32_t i = (uint32_t)start_channel_index;
 		     i < (start_channel_index + rp.num_channels); i++) {
