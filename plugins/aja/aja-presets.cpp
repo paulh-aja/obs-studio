@@ -40,7 +40,7 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_CAPTURE,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_RGB_LFR,
+		  HDMIWireFormat::SD_HD_RGB,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -54,13 +54,34 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_CAPTURE,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_RGB_HFR,
+		  HDMIWireFormat::SD_HD_RGB,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
 		  0,
 		  "hdmi[{ch1}][0]->fb[{ch1}][0];",
 		  {},
+		  true,
+		  false}},
+		{"HDMI_UHD_4K_RGB_Capture (io4K+)",
+		 {"HDMI_UHD_4K_RGB_Capture (io4K+)",
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_CAPTURE,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::UHD_4K_RGB,
+		  VPIDStandard_Unknown,
+		  1,
+		  2,
+		  kEnable4KTSI,
+		  "hdmi[{ch1}][4]->tsi[{ch1}][0];"
+		  "hdmi[{ch1}][5]->tsi[{ch1}][1];"
+		  "hdmi[{ch1}][6]->tsi[{ch2}][0];"
+		  "hdmi[{ch1}][7]->tsi[{ch2}][1];"
+		  "tsi[{ch1}][2]->fb[{ch1}][0];"
+		  "tsi[{ch1}][3]->fb[{ch1}][1];"
+		  "tsi[{ch2}][2]->fb[{ch2}][0];"
+		  "tsi[{ch2}][3]->fb[{ch2}][1];",
+		  {DEVICE_ID_IO4KPLUS},
 		  true,
 		  false}},
 		/*
@@ -71,7 +92,7 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_RGB_LFR,
+		  HDMIWireFormat::SD_HD_RGB,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -85,7 +106,7 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_RGB_HFR,
+		  HDMIWireFormat::SD_HD_RGB,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -99,7 +120,7 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_RGB_LFR,
+		  HDMIWireFormat::SD_HD_RGB,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -116,7 +137,7 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_RGB_HFR,
+		  HDMIWireFormat::SD_HD_RGB,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -131,12 +152,12 @@ void RoutingConfigurator::build_preset_table()
 		/*
         * HDMI YCbCr Capture
         */
-		{"HDMI_HD_YCBCR_LFR_YCbCr_Capture",
-		 {"HDMI_HD_YCBCR_LFR_YCbCr_Capture",
+		{"HDMI_HD_LFR_YCbCr_Capture",
+		 {"HDMI_HD_LFR_YCbCr_Capture",
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_CAPTURE,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_YCBCR_LFR,
+		  HDMIWireFormat::SD_HD_YCBCR,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -145,15 +166,36 @@ void RoutingConfigurator::build_preset_table()
 		  {},
 		  false,
 		  false}},
+		{"HDMI_UHD_4K_YCbCr_Capture (io4K+)",
+		 {"HDMI_UHD_4K_YCbCr_Capture (io4K+)",
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_CAPTURE,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::UHD_4K_YCBCR,
+		  VPIDStandard_Unknown,
+		  1,
+		  2,
+		  kEnable4KTSI,
+		  "hdmi[{ch1}][0]->tsi[{ch1}][0];"
+		  "hdmi[{ch1}][1]->tsi[{ch1}][1];"
+		  "hdmi[{ch1}][2]->tsi[{ch2}][0];"
+		  "hdmi[{ch1}][3]->tsi[{ch2}][1];"
+		  "tsi[{ch1}][0]->fb[{ch1}][0];"
+		  "tsi[{ch1}][1]->fb[{ch1}][1];"
+		  "tsi[{ch2}][0]->fb[{ch2}][0];"
+		  "tsi[{ch2}][1]->fb[{ch2}][1];",
+		  {DEVICE_ID_IO4KPLUS},
+		  false,
+		  false}},
 		/*
         * HDMI YCbCr Display
         */
-		{"HDMI_HD_YCBCR_LFR_YCbCr_Display",
-		 {"HDMI_HD_YCBCR_LFR_YCbCr_Display",
+		{"HDMI_HD_LFR_YCbCr_Display",
+		 {"HDMI_HD_LFR_YCbCr_Display",
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_YCBCR_LFR,
+		  HDMIWireFormat::SD_HD_YCBCR,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -167,7 +209,7 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_YCBCR_LFR,
+		  HDMIWireFormat::SD_HD_YCBCR,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -182,7 +224,7 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::HD,
-		  HDMIWireFormat::HD_YCBCR_HFR,
+		  HDMIWireFormat::SD_HD_YCBCR,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -197,7 +239,7 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::UHD_4K,
-		  HDMIWireFormat::UHD_4K_YCBCR_LFR,
+		  HDMIWireFormat::UHD_4K_YCBCR,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -212,7 +254,7 @@ void RoutingConfigurator::build_preset_table()
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  RasterDefinition::UHD_4K,
-		  HDMIWireFormat::UHD_4K_YCBCR_HFR,
+		  HDMIWireFormat::UHD_4K_YCBCR,
 		  VPIDStandard_Unknown,
 		  1,
 		  1,
@@ -391,6 +433,32 @@ void RoutingConfigurator::build_preset_table()
 		  {},
 		  true,
 		  false}},
+		{"UHD4K_ST425_Quad_3Ga_Squares_RGB_Capture",
+		 {"UHD4K_ST425_Quad_3Ga_Squares_RGB_Capture",
+		  ConnectionKind::SDI,
+		  NTV2_MODE_CAPTURE,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::Unknown,
+		  VPIDStandard_1080_3Ga,
+		  4,
+		  4,
+		  kEnable4KSquares,
+		  // SDIs -> Dual-Links
+		  "sdi[{ch1}][0]->dli[{ch1}][0];"
+		  "sdi[{ch1}][1]->dli[{ch1}][1];"
+		  "sdi[{ch2}][0]->dli[{ch2}][0];"
+		  "sdi[{ch2}][1]->dli[{ch2}][1];"
+		  "sdi[{ch3}][0]->dli[{ch3}][0];"
+		  "sdi[{ch3}][1]->dli[{ch3}][1];"
+		  "sdi[{ch4}][0]->dli[{ch4}][0];"
+		  "sdi[{ch4}][1]->dli[{ch4}][1];" // Dual-Links -> Framestores
+		  "dli[{ch1}][0]->fb[{ch1}][0];"
+		  "dli[{ch2}][0]->fb[{ch2}][0];"
+		  "dli[{ch3}][0]->fb[{ch3}][0];"
+		  "dli[{ch4}][0]->fb[{ch4}][0];",
+		  {},
+		  true,
+		  false}},
 		{"UHD4K_ST425_Quad_3Gb_Squares_RGB_Capture",
 		 {"UHD4K_ST425_Quad_3Gb_Squares_RGB_Capture",
 		  ConnectionKind::SDI,
@@ -426,7 +494,7 @@ void RoutingConfigurator::build_preset_table()
 		  VPIDStandard_2160_QuadLink_3Ga,
 		  4,
 		  4,
-		  (kEnable3GOut | kEnable4KTSI),
+		  kEnable4KTSI,
 		  // SDIs -> Dual-Links
 		  "sdi[{ch1}][0]->dli[{ch1}][0];"
 		  "sdi[{ch1}][1]->dli[{ch1}][1];"
