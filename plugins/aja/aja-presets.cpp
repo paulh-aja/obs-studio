@@ -1776,18 +1776,24 @@ bool RoutingConfigurator::FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
 			}
 		}
 		RoutingPresets device_presets;
-		for (const auto &q : query) {
+		RoutingPresets non_device_presets;
+		for (auto &q : query) {
+			if (q.second.device_ids.size() == 0)
+				non_device_presets.push_back(q.second);
 			for (const auto &device_id : q.second.device_ids) {
-				if (device_id == id)
+				if (device_id == id) {
 					device_presets.push_back(q.second);
+					break;
+				}
 			}
 		}
+
 		if (device_presets.size() > 0) {
 			preset = device_presets.at(0);
 			return true;
 		}
-		if (query.size() > 0) {
-			preset = query.at(0).second;
+		if (non_device_presets.size() > 0) {
+			preset = non_device_presets.at(0);
 			return true;
 		}
 	}
