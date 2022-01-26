@@ -52,9 +52,11 @@ public:
 	static void StopSourceAudio(const SourceProps &props, CNTV2Card *card);
 
 	static bool ConfigureSourceRoute(const SourceProps &props,
-					 NTV2Mode mode, CNTV2Card *card);
+					 NTV2Mode mode, CNTV2Card *card,
+					 NTV2XptConnections &cnx);
 	static bool ConfigureOutputRoute(const OutputProps &props,
-					 NTV2Mode mode, CNTV2Card *card);
+					 NTV2Mode mode, CNTV2Card *card,
+					 NTV2XptConnections &cnx);
 	static void ConfigureOutputAudio(const OutputProps &props,
 					 CNTV2Card *card);
 	static void LogRoutingPreset(const RoutingPreset &rp);

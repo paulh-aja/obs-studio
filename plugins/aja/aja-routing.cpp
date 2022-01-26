@@ -206,7 +206,7 @@ void Routing::StopSourceAudio(const SourceProps &props, CNTV2Card *card)
 }
 
 bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
-				   CNTV2Card *card)
+				   CNTV2Card *card, NTV2XptConnections &cnx)
 {
 	if (!card)
 		return false;
@@ -296,7 +296,6 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 				     aja::to_string(start_channel_index++));
 	}
 
-	NTV2XptConnections cnx;
 	if (!ParseRouteString(route_string, cnx))
 		return false;
 
@@ -351,7 +350,7 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 }
 
 bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
-				   CNTV2Card *card)
+				   CNTV2Card *card, NTV2XptConnections &cnx)
 {
 	if (!card)
 		return false;
@@ -449,7 +448,6 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 				     aja::to_string(start_channel_index++));
 	}
 
-	NTV2XptConnections cnx;
 	if (!ParseRouteString(route_string, cnx))
 		return false;
 

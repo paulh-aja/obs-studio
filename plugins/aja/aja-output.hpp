@@ -1,6 +1,7 @@
 #pragma once
 
 #include "aja-props.hpp"
+#include "aja-presets.hpp"
 
 #include <ajantv2/includes/ntv2testpatterngen.h>
 
@@ -57,6 +58,9 @@ public:
 
 	void SetOutputProps(const OutputProps &props);
 	OutputProps GetOutputProps() const;
+
+	void CacheConnections(const NTV2XptConnections &cnx);
+	void ClearConnections();
 
 	void GenerateTestPattern(NTV2VideoFormat vf, NTV2PixelFormat pf,
 				 NTV2TestPatternSelect pattern);
@@ -147,4 +151,6 @@ private:
 	std::unique_ptr<AudioQueue> mAudioQueue;
 
 	obs_output_t *mOBSOutput;
+
+	NTV2XptConnections mCrosspoints;
 };

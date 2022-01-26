@@ -106,7 +106,8 @@ AJAOutput::AJAOutput(CNTV2Card *card, const std::string &cardID,
 	  mRunThreadLock{},
 	  mVideoQueue{},
 	  mAudioQueue{},
-	  mOBSOutput{nullptr}
+	  mOBSOutput{nullptr},
+	  mCrosspoints{}
 {
 	mVideoQueue = std::make_unique<VideoQueue>();
 	mAudioQueue = std::make_unique<AudioQueue>();
@@ -171,6 +172,20 @@ void AJAOutput::SetOutputProps(const OutputProps &props)
 OutputProps AJAOutput::GetOutputProps() const
 {
 	return mOutputProps;
+}
+
+void AJAOutput::CacheConnections(const NTV2XptConnections &cnx)
+{
+	mCrosspoints.clear();
+	mCrosspoints = cnx;
+}
+
+void AJAOutput::ClearConnections()
+{
+	for (auto &&xpt : mCrosspoints) {
+		mCard->Connect(xpt.first, NTV2_XptBlack);
+	}
+	mCrosspoints.clear();
 }
 
 void AJAOutput::GenerateTestPattern(NTV2VideoFormat vf, NTV2PixelFormat pf,
@@ -1077,13 +1092,15 @@ static bool aja_output_start(void *data)
 	}
 
 	// Configures crosspoint routing on AJA card
+	ajaOutput->ClearConnections();
+	NTV2XptConnections xpt_cnx;
 	if (!aja::Routing::ConfigureOutputRoute(outputProps, NTV2_MODE_DISPLAY,
-						card)) {
+						card, xpt_cnx)) {
 		blog(LOG_ERROR,
 		     "aja_output_start: Error configuring output route!");
 		return false;
 	}
-
+	ajaOutput->CacheConnections(xpt_cnx);
 	aja::Routing::ConfigureOutputAudio(outputProps, card);
 
 	const auto &formatDesc = outputProps.FormatDesc();
@@ -1152,6 +1169,7 @@ static void aja_output_stop(void *data, uint64_t ts)
 		     aja::IOSelectionToString(outputProps.ioSelect).c_str(),
 		     cardID.c_str());
 	}
+	ajaOutput->ClearConnections();
 	ajaOutput->GenerateTestPattern(outputProps.videoFormat,
 				       outputProps.pixelFormat,
 				       NTV2_TestPatt_Black);
