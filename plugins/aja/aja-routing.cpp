@@ -418,7 +418,7 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 	// Replace framestore channel placeholders
 	auto init_channel = NTV2OutputDestinationToChannel(init_dest);
 	ULWord start_framestore_index = InitialFramestoreOutputIndex(
-		deviceID, props.ioSelect, init_channel);
+		deviceID, props.ioSelect, init_channel, props.videoFormat);
 	if (rp.verbatim) {
 		// Presets marked "verbatim" must only be routed on the specified channels
 		start_framestore_index = 0;
@@ -486,7 +486,7 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 
 	// Apply Framestore settings
 	start_framestore_index = InitialFramestoreOutputIndex(
-		deviceID, props.ioSelect, init_channel);
+		deviceID, props.ioSelect, init_channel, props.videoFormat);
 	if (rp.verbatim) {
 		start_framestore_index = 0;
 	}
@@ -605,7 +605,8 @@ ULWord Routing::InitialFramestoreInputIndex(NTV2DeviceID deviceID,
 
 ULWord Routing::InitialFramestoreOutputIndex(NTV2DeviceID deviceID,
 					     IOSelection io,
-					     NTV2Channel init_channel)
+					     NTV2Channel init_channel,
+					     NTV2VideoFormat vf)
 {
 	if (deviceID == DEVICE_ID_TTAP_PRO) {
 		return 0;
@@ -620,7 +621,10 @@ ULWord Routing::InitialFramestoreOutputIndex(NTV2DeviceID deviceID,
 
 	// HDMI Monitor output uses framestore 4
 	if (io == IOSelection::HDMIMonitorOut) {
-		return 3;
+		if (NTV2_IS_4K_VIDEO_FORMAT(vf))
+			return 2;
+		else
+			return 3;
 	}
 
 	return GetIndexForNTV2Channel(init_channel);

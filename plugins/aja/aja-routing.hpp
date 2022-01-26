@@ -64,7 +64,8 @@ public:
 						  NTV2VideoFormat vf);
 	static ULWord InitialFramestoreOutputIndex(NTV2DeviceID deviceID,
 						   IOSelection io,
-						   NTV2Channel init_channel);
+						   NTV2Channel init_channel,
+						   NTV2VideoFormat vf);
 	static void LogRoutingPreset(const RoutingPreset &rp);
 };
 
