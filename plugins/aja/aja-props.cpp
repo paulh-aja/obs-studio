@@ -301,9 +301,13 @@ NTV2Channel OutputProps::Channel() const
 		return NTV2_CHANNEL4;
 	}
 
-	if (NTV2_OUTPUT_DEST_IS_HDMI(outputDest))
+	if (NTV2_OUTPUT_DEST_IS_HDMI(outputDest)) {
+		if (aja::CardCanDoHDMIMonitorOutput(deviceID) &&
+		    NTV2_IS_4K_VIDEO_FORMAT(videoFormat))
+			return NTV2_CHANNEL3;
 		return static_cast<NTV2Channel>(
 			NTV2DeviceGetNumFrameStores(deviceID) - 1);
+	}
 
 	return NTV2OutputDestinationToChannel(outputDest);
 }
