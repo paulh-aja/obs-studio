@@ -57,15 +57,6 @@ public:
 					 NTV2Mode mode, CNTV2Card *card);
 	static void ConfigureOutputAudio(const OutputProps &props,
 					 CNTV2Card *card);
-
-	static ULWord InitialFramestoreInputIndex(NTV2DeviceID deviceID,
-						  IOSelection io,
-						  NTV2Channel init_channel,
-						  NTV2VideoFormat vf);
-	static ULWord InitialFramestoreOutputIndex(NTV2DeviceID deviceID,
-						   IOSelection io,
-						   NTV2Channel init_channel,
-						   NTV2VideoFormat vf);
 	static void LogRoutingPreset(const RoutingPreset &rp);
 };
 

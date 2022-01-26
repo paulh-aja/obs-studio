@@ -43,20 +43,27 @@ public:
 				    const std::string &owner);
 	virtual bool ReleaseChannel(NTV2Channel chan, NTV2Mode mode,
 				    const std::string &owner);
-	virtual bool InputSelectionReady(IOSelection io, NTV2DeviceID id,
-					 const std::string &owner) const;
-	virtual bool OutputSelectionReady(IOSelection io, NTV2DeviceID id,
-					  const std::string &owner) const;
-	virtual bool AcquireInputSelection(IOSelection io, NTV2DeviceID id,
-					   const std::string &owner);
-	virtual bool ReleaseInputSelection(IOSelection io, NTV2DeviceID id,
-					   const std::string &owner);
-	virtual bool AcquireOutputSelection(IOSelection io, NTV2DeviceID id,
-					    const std::string &owner);
-	virtual bool ReleaseOutputSelection(IOSelection io, NTV2DeviceID id,
-					    const std::string &owner);
 	virtual bool UpdateChannelOwnerName(const std::string &oldName,
 					    const std::string &newName);
+
+	virtual bool InputSelectionReady(IOSelection io, NTV2VideoFormat vf,
+					 NTV2DeviceID id,
+					 const std::string &owner) const;
+	virtual bool OutputSelectionReady(IOSelection io, NTV2VideoFormat vf,
+					  NTV2DeviceID id,
+					  const std::string &owner) const;
+	virtual bool AcquireInputSelection(IOSelection io, NTV2VideoFormat vf,
+					   NTV2DeviceID id,
+					   const std::string &owner);
+	virtual bool ReleaseInputSelection(IOSelection io, NTV2VideoFormat vf,
+					   NTV2DeviceID id,
+					   const std::string &owner);
+	virtual bool AcquireOutputSelection(IOSelection io, NTV2VideoFormat vf,
+					    NTV2DeviceID id,
+					    const std::string &owner);
+	virtual bool ReleaseOutputSelection(IOSelection io, NTV2VideoFormat vf,
+					    NTV2DeviceID id,
+					    const std::string &owner);
 
 private:
 	virtual bool isAutoCirculateRunning(NTV2Channel);

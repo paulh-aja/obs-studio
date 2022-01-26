@@ -270,8 +270,8 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 	std::string route_string = rp.route_string;
 
 	// Channel-substitution for widgets associated with framestore channel(s)
-	ULWord start_framestore_index = InitialFramestoreInputIndex(
-		deviceID, props.ioSelect, init_channel, props.videoFormat);
+	ULWord start_framestore_index =
+		GetIndexForNTV2Channel(props.Framestore());
 	const std::vector<std::string> fs_associated = {"fb", "tsi", "dli"};
 	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
 		for (const auto &name : fs_associated) {
@@ -332,8 +332,7 @@ bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
 	}
 
 	// Apply Framestore settings
-	start_framestore_index = InitialFramestoreInputIndex(
-		deviceID, props.ioSelect, init_channel, props.videoFormat);
+	start_framestore_index = GetIndexForNTV2Channel(props.Framestore());
 	for (uint32_t i = (uint32_t)start_framestore_index;
 	     i < (start_framestore_index + rp.num_framestores); i++) {
 		NTV2Channel channel = GetNTV2ChannelForIndex(i);
@@ -417,8 +416,8 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 
 	// Replace framestore channel placeholders
 	auto init_channel = NTV2OutputDestinationToChannel(init_dest);
-	ULWord start_framestore_index = InitialFramestoreOutputIndex(
-		deviceID, props.ioSelect, init_channel, props.videoFormat);
+	ULWord start_framestore_index =
+		GetIndexForNTV2Channel(props.Framestore());
 	if (rp.verbatim) {
 		// Presets marked "verbatim" must only be routed on the specified channels
 		start_framestore_index = 0;
@@ -485,8 +484,7 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 	}
 
 	// Apply Framestore settings
-	start_framestore_index = InitialFramestoreOutputIndex(
-		deviceID, props.ioSelect, init_channel, props.videoFormat);
+	start_framestore_index = GetIndexForNTV2Channel(props.Framestore());
 	if (rp.verbatim) {
 		start_framestore_index = 0;
 	}
@@ -589,45 +587,6 @@ void Routing::ConfigureOutputAudio(const OutputProps &props, CNTV2Card *card)
 	card->SetAudioLoopBack(NTV2_AUDIO_LOOPBACK_OFF, audioSys);
 
 	card->StopAudioOutput(audioSys);
-}
-
-ULWord Routing::InitialFramestoreInputIndex(NTV2DeviceID deviceID,
-					    IOSelection io,
-					    NTV2Channel init_channel,
-					    NTV2VideoFormat vf)
-{
-	if (deviceID == DEVICE_ID_KONAHDMI && io == IOSelection::HDMI2 &&
-	    NTV2_IS_4K_VIDEO_FORMAT(vf)) {
-		return 2;
-	}
-	return GetIndexForNTV2Channel(init_channel);
-}
-
-ULWord Routing::InitialFramestoreOutputIndex(NTV2DeviceID deviceID,
-					     IOSelection io,
-					     NTV2Channel init_channel,
-					     NTV2VideoFormat vf)
-{
-	if (deviceID == DEVICE_ID_TTAP_PRO) {
-		return 0;
-	} else if (deviceID == DEVICE_ID_KONA1) {
-		return 1;
-	} else if (deviceID == DEVICE_ID_IO4K ||
-		   deviceID == DEVICE_ID_IO4KPLUS) {
-		// SDI Monitor output uses framestore 4
-		if (io == IOSelection::SDI5)
-			return 3;
-	}
-
-	// HDMI Monitor output uses framestore 4
-	if (io == IOSelection::HDMIMonitorOut) {
-		if (NTV2_IS_4K_VIDEO_FORMAT(vf))
-			return 2;
-		else
-			return 3;
-	}
-
-	return GetIndexForNTV2Channel(init_channel);
 }
 
 void Routing::LogRoutingPreset(const RoutingPreset &rp)

@@ -800,7 +800,7 @@ bool aja_output_device_changed(void *data, obs_properties_t *props,
 
 	const NTV2DeviceID deviceID = cardEntry->GetDeviceID();
 	populate_io_selection_output_list(cardID, outputID, deviceID,
-					  io_select_list);
+					  io_select_list, settings);
 
 	// If Channel 1 is actively in use, filter the video format list to only
 	// show video formats within the same framerate family. If Channel 1 is
@@ -978,8 +978,9 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 	}
 	outputProps.outputDest = *outputDests.begin();
 
-	if (!cardEntry->AcquireOutputSelection(outputProps.ioSelect, deviceID,
-					       outputID)) {
+	if (!cardEntry->AcquireOutputSelection(outputProps.ioSelect,
+					       outputProps.videoFormat,
+					       deviceID, outputID)) {
 		blog(LOG_ERROR,
 		     "aja_output_create: Error acquiring IOSelection %s for card ID %s",
 		     ioSelectStr.c_str(), cardID);
@@ -1143,9 +1144,9 @@ static void aja_output_stop(void *data, uint64_t ts)
 	}
 
 	auto outputProps = ajaOutput->GetOutputProps();
-	if (!cardEntry->ReleaseOutputSelection(outputProps.ioSelect,
-					       card->GetDeviceID(),
-					       ajaOutput->mOutputID)) {
+	if (!cardEntry->ReleaseOutputSelection(
+		    outputProps.ioSelect, outputProps.videoFormat,
+		    card->GetDeviceID(), ajaOutput->mOutputID)) {
 		blog(LOG_WARNING,
 		     "aja_output_stop: Error releasing IOSelection %s from card ID %s",
 		     aja::IOSelectionToString(outputProps.ioSelect).c_str(),

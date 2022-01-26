@@ -11,7 +11,7 @@
 
 void filter_io_selection_input_list(const std::string &cardID,
 				    const std::string &channelOwner,
-				    obs_property_t *list)
+				    obs_property_t *list, obs_data_t *settings)
 {
 	auto &cardManager = aja::CardManager::Instance();
 
@@ -28,18 +28,20 @@ void filter_io_selection_input_list(const std::string &cardID,
 	if (card)
 		deviceID = card->GetDeviceID();
 
+	auto videoFormat = static_cast<NTV2VideoFormat>(
+		obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
+
 	// Gray out the IOSelection list items that are in use by other plugin instances
 	for (size_t idx = 0; idx < obs_property_list_item_count(list); idx++) {
 		auto io_select = static_cast<IOSelection>(
 			obs_property_list_item_int(list, idx));
-
 		if (io_select == IOSelection::Invalid) {
 			obs_property_list_item_disable(list, idx, false);
 			continue;
 		}
 
 		bool enabled = cardEntry->InputSelectionReady(
-			io_select, deviceID, channelOwner);
+			io_select, videoFormat, deviceID, channelOwner);
 		obs_property_list_item_disable(list, idx, !enabled);
 		blog(LOG_DEBUG, "IOSelection %s = %s",
 		     aja::IOSelectionToString(io_select).c_str(),
@@ -49,7 +51,7 @@ void filter_io_selection_input_list(const std::string &cardID,
 
 void filter_io_selection_output_list(const std::string &cardID,
 				     const std::string &channelOwner,
-				     obs_property_t *list)
+				     obs_property_t *list, obs_data_t *settings)
 {
 	auto &cardManager = aja::CardManager::Instance();
 
@@ -66,6 +68,9 @@ void filter_io_selection_output_list(const std::string &cardID,
 	if (card)
 		deviceID = card->GetDeviceID();
 
+	auto videoFormat = static_cast<NTV2VideoFormat>(
+		obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
+
 	// Gray out the IOSelection list items that are in use by other plugin instances
 	for (size_t idx = 0; idx < obs_property_list_item_count(list); idx++) {
 		auto io_select = static_cast<IOSelection>(
@@ -76,7 +81,7 @@ void filter_io_selection_output_list(const std::string &cardID,
 		}
 
 		bool enabled = cardEntry->OutputSelectionReady(
-			io_select, deviceID, channelOwner);
+			io_select, videoFormat, deviceID, channelOwner);
 		obs_property_list_item_disable(list, idx, !enabled);
 		blog(LOG_DEBUG, "IOSelection %s = %s",
 		     aja::IOSelectionToString(io_select).c_str(),
@@ -87,7 +92,8 @@ void filter_io_selection_output_list(const std::string &cardID,
 void populate_io_selection_input_list(const std::string &cardID,
 				      const std::string &channelOwner,
 				      NTV2DeviceID deviceID,
-				      obs_property_t *list)
+				      obs_property_t *list,
+				      obs_data_t *settings)
 {
 	obs_property_list_clear(list);
 
@@ -109,13 +115,14 @@ void populate_io_selection_input_list(const std::string &cardID,
 		}
 	}
 
-	filter_io_selection_input_list(cardID, channelOwner, list);
+	filter_io_selection_input_list(cardID, channelOwner, list, settings);
 }
 
 void populate_io_selection_output_list(const std::string &cardID,
 				       const std::string &channelOwner,
 				       NTV2DeviceID deviceID,
-				       obs_property_t *list)
+				       obs_property_t *list,
+				       obs_data_t *settings)
 {
 	obs_property_list_clear(list);
 
@@ -147,7 +154,7 @@ void populate_io_selection_output_list(const std::string &cardID,
 		}
 	}
 
-	filter_io_selection_output_list(cardID, channelOwner, list);
+	filter_io_selection_output_list(cardID, channelOwner, list, settings);
 }
 
 void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,

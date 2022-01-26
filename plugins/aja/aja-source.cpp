@@ -666,7 +666,7 @@ bool aja_source_device_changed(void *data, obs_properties_t *props,
 	populate_sdi_4k_transport_list(sdi_4k_list);
 
 	populate_io_selection_input_list(cardID, ajaSource->GetName(), deviceID,
-					 io_select_list);
+					 io_select_list, settings);
 
 	auto curr_vf = static_cast<NTV2VideoFormat>(
 		obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
@@ -711,7 +711,7 @@ bool aja_io_selection_changed(void *data, obs_properties_t *props,
 		obs_properties_get(props, kUIPropInput.id);
 
 	filter_io_selection_input_list(cardID, ajaSource->GetName(),
-				       io_select_list);
+				       io_select_list, settings);
 
 	auto inp_sel = static_cast<IOSelection>(
 		obs_data_get_int(settings, kUIPropInput.id));
@@ -798,7 +798,8 @@ void aja_source_destroy(void *data)
 	}
 
 	auto ioSelect = ajaSource->GetSourceProps().ioSelect;
-	if (!cardEntry->ReleaseInputSelection(ioSelect, deviceID,
+	auto vidFormat = ajaSource->GetSourceProps().videoFormat;
+	if (!cardEntry->ReleaseInputSelection(ioSelect, vidFormat, deviceID,
 					      ajaSource->GetName())) {
 		blog(LOG_WARNING,
 		     "aja_source_destroy: Error releasing Input Selection!");
@@ -923,7 +924,8 @@ static void aja_source_update(void *data, obs_data_t *settings)
 			const std::string &ioSelectStr =
 				aja::IOSelectionToString(curr_props.ioSelect);
 			if (!prevCardEntry->ReleaseInputSelection(
-				    curr_props.ioSelect, curr_props.deviceID,
+				    curr_props.ioSelect, curr_props.videoFormat,
+				    curr_props.deviceID,
 				    ajaSource->GetName())) {
 				blog(LOG_WARNING,
 				     "aja_source_update: Error releasing IOSelection %s for card ID %s",
@@ -976,9 +978,9 @@ static void aja_source_update(void *data, obs_data_t *settings)
 	if (want_props.ioSelect != curr_props.ioSelect) {
 		const std::string &ioSelectStr =
 			aja::IOSelectionToString(curr_props.ioSelect);
-		if (!cardEntry->ReleaseInputSelection(curr_props.ioSelect,
-						      curr_props.deviceID,
-						      ajaSource->GetName())) {
+		if (!cardEntry->ReleaseInputSelection(
+			    curr_props.ioSelect, curr_props.videoFormat,
+			    curr_props.deviceID, ajaSource->GetName())) {
 			blog(LOG_WARNING,
 			     "aja_source_update: Error releasing IOSelection %s for card ID %s",
 			     ioSelectStr.c_str(), currentCardID.c_str());
@@ -990,9 +992,9 @@ static void aja_source_update(void *data, obs_data_t *settings)
 	}
 
 	// Acquire Channels for current IOSelection
-	if (!cardEntry->AcquireInputSelection(want_props.ioSelect,
-					      want_props.deviceID,
-					      ajaSource->GetName())) {
+	if (!cardEntry->AcquireInputSelection(
+		    want_props.ioSelect, want_props.videoFormat,
+		    want_props.deviceID, ajaSource->GetName())) {
 		blog(LOG_ERROR,
 		     "aja_source_update: Could not acquire IOSelection %s",
 		     aja::IOSelectionToString(want_props.ioSelect).c_str());
@@ -1007,6 +1009,7 @@ static void aja_source_update(void *data, obs_data_t *settings)
 					want_props.vpids)) {
 		blog(LOG_ERROR, "aja_source_update: ReadWireFormats failed!");
 		cardEntry->ReleaseInputSelection(want_props.ioSelect,
+						 curr_props.videoFormat,
 						 curr_props.deviceID,
 						 ajaSource->GetName());
 		return;
@@ -1026,6 +1029,7 @@ static void aja_source_update(void *data, obs_data_t *settings)
 		     NTV2FrameBufferFormatToString(want_props.pixelFormat)
 			     .c_str());
 		cardEntry->ReleaseInputSelection(want_props.ioSelect,
+						 curr_props.videoFormat,
 						 curr_props.deviceID,
 						 ajaSource->GetName());
 		return;

@@ -263,9 +263,31 @@ bool CardEntry::ReleaseChannel(NTV2Channel chan, NTV2Mode mode,
 	return false;
 }
 
-bool CardEntry::InputSelectionReady(IOSelection io, NTV2DeviceID id,
+bool CardEntry::UpdateChannelOwnerName(const std::string &oldName,
+				       const std::string &newName)
+{
+	const std::lock_guard<std::mutex> lock(mMutex);
+
+	for (const auto &pwn : mChannelPwnz) {
+		if (pwn.first == oldName) {
+			mChannelPwnz.insert(std::pair<std::string, int32_t>{
+				newName, pwn.second});
+
+			mChannelPwnz.erase(oldName);
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool CardEntry::InputSelectionReady(IOSelection io, NTV2VideoFormat vf,
+				    NTV2DeviceID id,
 				    const std::string &owner) const
 {
+	UNUSED_PARAMETER(vf);
+
 	NTV2InputSourceSet inputSources;
 	aja::IOSelectionToInputSources(io, inputSources);
 	if (id == DEVICE_ID_KONA1 && io == IOSelection::SDI1) {
@@ -286,9 +308,11 @@ bool CardEntry::InputSelectionReady(IOSelection io, NTV2DeviceID id,
 	return false;
 }
 
-bool CardEntry::OutputSelectionReady(IOSelection io, NTV2DeviceID id,
+bool CardEntry::OutputSelectionReady(IOSelection io, NTV2VideoFormat vf,
+				     NTV2DeviceID id,
 				     const std::string &owner) const
 {
+	UNUSED_PARAMETER(vf);
 	/* Handle checking special case outputs before all other outputs.
 	 * 1. HDMI Monitor uses framestore 4
 	 * 2. SDI Monitor on Io 4K/Io 4K Plus, etc. uses framestore 4.
@@ -325,43 +349,51 @@ bool CardEntry::OutputSelectionReady(IOSelection io, NTV2DeviceID id,
 	return false;
 }
 
-bool CardEntry::AcquireInputSelection(IOSelection io, NTV2DeviceID id,
-				      const std::string &owner)
+bool CardEntry::AcquireInputSelection(IOSelection io, NTV2VideoFormat vf,
+				      NTV2DeviceID id, const std::string &owner)
 {
+	UNUSED_PARAMETER(vf);
 	UNUSED_PARAMETER(id);
+
+	std::vector<NTV2Channel> wantChannels;
 
 	NTV2InputSourceSet inputSources;
 	aja::IOSelectionToInputSources(io, inputSources);
+	for (auto &&src : inputSources) {
+		wantChannels.push_back(
+			NTV2InputSourceToChannel(src));
+	}
 
 	std::vector<NTV2Channel> acquiredChannels;
-	for (auto &&src : inputSources) {
-		auto acqChan = NTV2InputSourceToChannel(src);
-		if (AcquireChannel(acqChan, NTV2_MODE_CAPTURE, owner)) {
+	for (auto &&chan : wantChannels) {
+		if (AcquireChannel(chan, NTV2_MODE_CAPTURE, owner)) {
 			blog(LOG_DEBUG, "Source %s acquired channel %s",
 			     owner.c_str(),
-			     NTV2ChannelToString(acqChan).c_str());
-			acquiredChannels.push_back(acqChan);
+			     NTV2ChannelToString(chan).c_str());
+			acquiredChannels.push_back(chan);
 		} else {
 			blog(LOG_DEBUG,
 			     "Source %s could not acquire channel %s",
 			     owner.c_str(),
-			     NTV2ChannelToString(acqChan).c_str());
+			     NTV2ChannelToString(chan).c_str());
 		}
 	}
 
 	// Release channels if we couldn't acquire all required channels.
-	if (acquiredChannels.size() != inputSources.size()) {
+	bool acquiredAll = acquiredChannels.size() == wantChannels.size();
+	if (!acquiredAll) {
 		for (auto &&ac : acquiredChannels) {
 			ReleaseChannel(ac, NTV2_MODE_CAPTURE, owner);
 		}
 	}
 
-	return acquiredChannels.size() == inputSources.size();
+	return acquiredAll;
 }
 
-bool CardEntry::ReleaseInputSelection(IOSelection io, NTV2DeviceID id,
-				      const std::string &owner)
+bool CardEntry::ReleaseInputSelection(IOSelection io, NTV2VideoFormat vf,
+				      NTV2DeviceID id, const std::string &owner)
 {
+	UNUSED_PARAMETER(vf);
 	UNUSED_PARAMETER(id);
 
 	NTV2InputSourceSet currentInputSources;
@@ -378,126 +410,98 @@ bool CardEntry::ReleaseInputSelection(IOSelection io, NTV2DeviceID id,
 	return releasedCount == currentInputSources.size();
 }
 
-bool CardEntry::AcquireOutputSelection(IOSelection io, NTV2DeviceID id,
+bool CardEntry::AcquireOutputSelection(IOSelection io, NTV2VideoFormat vf,
+				       NTV2DeviceID id,
 				       const std::string &owner)
 {
-	std::vector<NTV2Channel> acquiredChannels;
-	NTV2OutputDestinations outputDests;
-	aja::IOSelectionToOutputDests(io, outputDests);
+	UNUSED_PARAMETER(vf);
 
-	// Handle acquiring special case outputs --
-	NTV2Channel specialChannel = NTV2_CHANNEL_INVALID;
+	// Handle acquiring special case outputs
+	std::vector<NTV2Channel> wantChannels;
 	if (aja::CardCanDoHDMIMonitorOutput(id) &&
 	    // HDMI Monitor output on io4K/io4K+/etc. uses framestore 4.
 	    io == IOSelection::HDMIMonitorOut) {
-		specialChannel = NTV2_CHANNEL4;
+		wantChannels.push_back(NTV2_CHANNEL4);
 	} else if (aja::CardCanDoSDIMonitorOutput(id) &&
 		   io == IOSelection::SDI5) {
 		// SDI Monitor output on io4K/io4K+/etc. uses framestore 4.
-		specialChannel = NTV2_CHANNEL4;
+		wantChannels.push_back(NTV2_CHANNEL4);
 	} else if (id == DEVICE_ID_KONA1 && io == IOSelection::SDI1) {
 		// Kona1 has one SDI spigot dedicated to input and another
 		// spigot dedicated to output. Both are referred to as "SDI1"
 		// but capture uses framestore 1 and output uses framestore 2.
-		specialChannel = NTV2_CHANNEL2;
+		wantChannels.push_back(NTV2_CHANNEL2);
+	} else {
+		NTV2OutputDestinations outputDests;
+		aja::IOSelectionToOutputDests(io, outputDests);
+		for (auto &&dst : outputDests) {
+			wantChannels.push_back(
+				NTV2OutputDestinationToChannel(dst));
+		}
 	}
-	if (specialChannel != NTV2_CHANNEL_INVALID) {
-		if (AcquireChannel(specialChannel, NTV2_MODE_DISPLAY, owner)) {
-			acquiredChannels.push_back(specialChannel);
+
+	std::vector<NTV2Channel> acquiredChannels;
+	for (auto &&chan : wantChannels) {
+		if (AcquireChannel(chan, NTV2_MODE_DISPLAY, owner)) {
+			acquiredChannels.push_back(chan);
 			blog(LOG_DEBUG, "Output %s acquired channel %s",
-			     owner.c_str(),
-			     NTV2ChannelToString(specialChannel).c_str());
+			     owner.c_str(), NTV2ChannelToString(chan).c_str());
 		} else {
 			blog(LOG_DEBUG,
 			     "Output %s could not acquire channel %s",
-			     owner.c_str(),
-			     NTV2ChannelToString(specialChannel).c_str());
-		}
-	} else {
-		// Handle acquiring all other channels
-		for (auto &&dst : outputDests) {
-			auto acqChan = NTV2OutputDestinationToChannel(dst);
-			if (AcquireChannel(acqChan, NTV2_MODE_DISPLAY, owner)) {
-				acquiredChannels.push_back(acqChan);
-				blog(LOG_DEBUG, "Output %s acquired channel %s",
-				     owner.c_str(),
-				     NTV2ChannelToString(acqChan).c_str());
-			} else {
-				blog(LOG_DEBUG,
-				     "Output %s could not acquire channel %s",
-				     owner.c_str(),
-				     NTV2ChannelToString(acqChan).c_str());
-			}
-		}
-
-		// Release channels if we couldn't acquire all required channels.
-		if (acquiredChannels.size() != outputDests.size()) {
-			for (auto &&ac : acquiredChannels) {
-				ReleaseChannel(ac, NTV2_MODE_DISPLAY, owner);
-			}
+			     owner.c_str(), NTV2ChannelToString(chan).c_str());
 		}
 	}
 
-	return acquiredChannels.size() == outputDests.size();
+	bool acquiredAll = acquiredChannels.size() == wantChannels.size();
+	if (!acquiredAll) {
+		for (auto &&ac : acquiredChannels) {
+			ReleaseChannel(ac, NTV2_MODE_DISPLAY, owner);
+		}
+	}
+
+	return acquiredAll;
 }
 
-bool CardEntry::ReleaseOutputSelection(IOSelection io, NTV2DeviceID id,
+bool CardEntry::ReleaseOutputSelection(IOSelection io, NTV2VideoFormat vf,
+				       NTV2DeviceID id,
 				       const std::string &owner)
 {
-	NTV2OutputDestinations currentOutputDests;
-	aja::IOSelectionToOutputDests(io, currentOutputDests);
+	UNUSED_PARAMETER(vf);
+
 	uint32_t releasedCount = 0;
+	std::vector<NTV2Channel> acquiredChannels;
 
 	// Handle releasing special case outputs --
-	// HDMI Monitor uses framestore 4
 	if (aja::CardCanDoHDMIMonitorOutput(id) &&
 	    io == IOSelection::HDMIMonitorOut) {
-		NTV2Channel hdmiMonChannel = NTV2_CHANNEL4;
-		if (ReleaseChannel(hdmiMonChannel, NTV2_MODE_DISPLAY, owner)) {
-			blog(LOG_DEBUG, "Released Channel %s",
-			     NTV2ChannelToString(hdmiMonChannel).c_str());
-			releasedCount++;
-		}
+		// HDMI Monitor uses framestore 4
+		acquiredChannels.push_back(NTV2_CHANNEL4);
 	} else if (aja::CardCanDoSDIMonitorOutput(id) &&
 		   io == IOSelection::SDI5) {
 		// SDI Monitor on io4K/io4K+/etc. uses framestore 4
-		NTV2Channel sdiMonChannel = NTV2_CHANNEL4;
-		if (ReleaseChannel(sdiMonChannel, NTV2_MODE_DISPLAY, owner)) {
+		acquiredChannels.push_back(NTV2_CHANNEL4);
+	} else if (id == DEVICE_ID_KONA1 && io == IOSelection::SDI1) {
+		// Kona1 uses framestore 2 for output
+		acquiredChannels.push_back(NTV2_CHANNEL2);
+	} else {
+		NTV2OutputDestinations currentOutputDests;
+		aja::IOSelectionToOutputDests(io, currentOutputDests);
+		for (auto &&dst : currentOutputDests) {
+			acquiredChannels.push_back(
+				NTV2OutputDestinationToChannel(dst));
+		}
+	}
+
+	for (auto &&ac : acquiredChannels) {
+		if (ReleaseChannel(ac, NTV2_MODE_DISPLAY, owner)) {
 			blog(LOG_DEBUG, "Released Channel %s",
-			     NTV2ChannelToString(sdiMonChannel).c_str());
+			     NTV2ChannelToString(ac).c_str());
 			releasedCount++;
 		}
-	} else {
-		// Release all other channels
-		for (auto &&dst : currentOutputDests) {
-			auto relChan = NTV2OutputDestinationToChannel(dst);
-			if (ReleaseChannel(relChan, NTV2_MODE_DISPLAY, owner)) {
-				blog(LOG_DEBUG, "Released Channel %s",
-				     NTV2ChannelToString(relChan).c_str());
-				releasedCount++;
-			}
-		}
-	}
-	return releasedCount == currentOutputDests.size();
-}
-
-bool CardEntry::UpdateChannelOwnerName(const std::string &oldName,
-				       const std::string &newName)
-{
-	const std::lock_guard<std::mutex> lock(mMutex);
-
-	for (const auto &pwn : mChannelPwnz) {
-		if (pwn.first == oldName) {
-			mChannelPwnz.insert(std::pair<std::string, int32_t>{
-				newName, pwn.second});
-
-			mChannelPwnz.erase(oldName);
-
-			return true;
-		}
 	}
 
-	return false;
+	return releasedCount == acquiredChannels.size();
 }
 
 bool CardEntry::isAutoCirculateRunning(NTV2Channel chan)

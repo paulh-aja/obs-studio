@@ -27,18 +27,22 @@ static const SDITransport4K kDefaultAJASDITransport4K =
 // Common OBS property helpers used by both the capture and output plugins
 extern void filter_io_selection_input_list(const std::string &cardID,
 					   const std::string &channelOwner,
-					   obs_property_t *list);
+					   obs_property_t *list,
+					   obs_data_t *settings);
 extern void filter_io_selection_output_list(const std::string &cardID,
 					    const std::string &channelOwner,
-					    obs_property_t *list);
+					    obs_property_t *list,
+					    obs_data_t *settings);
 extern void populate_io_selection_input_list(const std::string &cardID,
 					     const std::string &channelOwner,
 					     NTV2DeviceID deviceID,
-					     obs_property_t *list);
+					     obs_property_t *list,
+					     obs_data_t *settings);
 extern void populate_io_selection_output_list(const std::string &cardID,
 					      const std::string &channelOwner,
 					      NTV2DeviceID deviceID,
-					      obs_property_t *list);
+					      obs_property_t *list,
+					      obs_data_t *settings);
 extern void
 populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 			   NTV2VideoFormat genlockFormat = NTV2_FORMAT_UNKNOWN);
