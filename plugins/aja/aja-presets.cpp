@@ -204,6 +204,27 @@ void RoutingConfigurator::build_preset_table()
 		  {},
 		  false,
 		  false}},
+		{"HDMI_UHD_4K_LFR_YCbCr_Display",
+		 {"HDMI_UHD_4K_LFR_YCbCr_Display",
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_DISPLAY,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::UHD_4K_YCBCR,
+		  VPIDStandard_Unknown,
+		  1,
+		  2,
+		  kEnable4KTSI,
+		  "fb[{ch1}][0]->tsi[{ch1}][0];"
+		  "fb[{ch1}][1]->tsi[{ch1}][1];"
+		  "fb[{ch2}][0]->tsi[{ch2}][0];"
+		  "fb[{ch2}][1]->tsi[{ch2}][1];"
+		  "tsi[{ch1}][0]->hdmi[{ch1}][0];"
+		  "tsi[{ch1}][1]->hdmi[{ch1}][1];"
+		  "tsi[{ch2}][0]->hdmi[{ch1}][2];"
+		  "tsi[{ch2}][1]->hdmi[{ch1}][3];",
+		  {},
+		  false,
+		  false}},
 		{"HDMI_HD_LFR_YCbCr_Display (TTap Pro)",
 		 {"HDMI_HD_LFR_YCbCr_Display (TTap Pro)",
 		  ConnectionKind::HDMI,
