@@ -158,7 +158,7 @@ void populate_io_selection_output_list(const std::string &cardID,
 }
 
 void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
-				NTV2VideoFormat genlockFormat)
+				NTV2VideoFormat genlockFormat, bool want4KHFR)
 {
 	VideoFormatList videoFormats = {};
 	VideoStandardList orderedStandards = {};
@@ -175,10 +175,12 @@ void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 	if (NTV2DeviceCanDo4KVideo(deviceID)) {
 		orderedStandards.push_back(NTV2_STANDARD_3840i);
 		orderedStandards.push_back(NTV2_STANDARD_3840x2160p);
-		orderedStandards.push_back(NTV2_STANDARD_3840HFR);
+		if (want4KHFR)
+			orderedStandards.push_back(NTV2_STANDARD_3840HFR);
 		orderedStandards.push_back(NTV2_STANDARD_4096i);
 		orderedStandards.push_back(NTV2_STANDARD_4096x2160p);
-		orderedStandards.push_back(NTV2_STANDARD_4096HFR);
+		if (want4KHFR)
+			orderedStandards.push_back(NTV2_STANDARD_4096HFR);
 	}
 
 	aja::GetSortedVideoFormats(deviceID, orderedStandards, videoFormats);
@@ -212,7 +214,7 @@ void populate_pixel_format_list(NTV2DeviceID deviceID, obs_property_t *list)
 }
 
 void populate_sdi_transport_list(obs_property_t *list, IOSelection io,
-				 bool capture)
+				 NTV2DeviceID deviceID, bool capture)
 {
 	if (capture) {
 		obs_property_list_add_int(list, obs_module_text("Auto"),
@@ -220,6 +222,14 @@ void populate_sdi_transport_list(obs_property_t *list, IOSelection io,
 	}
 	for (int i = 0; i < (int)SDITransport::Unknown; i++) {
 		SDITransport sdi_trx = static_cast<SDITransport>(i);
+		if (sdi_trx == SDITransport::SDI6G ||
+		    sdi_trx == SDITransport::SDI12G) {
+			if (!NTV2DeviceCanDo12GSDI(deviceID))
+				continue;
+		}
+		// Disabling 12G in Output plugin until AJA 4K HFR bug is fixed
+		if (!capture && sdi_trx == SDITransport::SDI12G)
+			continue;
 		obs_property_list_add_int(
 			list, aja::SDITransportToString(sdi_trx).c_str(),
 			static_cast<long long>(sdi_trx));

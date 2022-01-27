@@ -13,6 +13,7 @@
 #include <ajantv2/includes/ntv2utils.h>
 
 #define NTV2_AUDIOSIZE_MAX (401 * 1024)
+#define ENABLE_4K_HIGH_FRAMERATE true
 
 AJASource::AJASource(obs_source_t *source)
 	: mVideoBuffer{},
@@ -665,7 +666,8 @@ bool aja_source_device_changed(void *data, obs_properties_t *props,
 	obs_property_list_clear(vid_fmt_list);
 	obs_property_list_add_int(vid_fmt_list, obs_module_text("Auto"),
 				  kAutoDetect);
-	populate_video_format_list(deviceID, vid_fmt_list, videoFormatChannel1);
+	populate_video_format_list(deviceID, vid_fmt_list, videoFormatChannel1,
+				   ENABLE_4K_HIGH_FRAMERATE);
 
 	obs_property_list_clear(pix_fmt_list);
 	obs_property_list_add_int(pix_fmt_list, obs_module_text("Auto"),
@@ -675,7 +677,7 @@ bool aja_source_device_changed(void *data, obs_properties_t *props,
 	IOSelection io_select = static_cast<IOSelection>(
 		obs_data_get_int(settings, kUIPropInput.id));
 	obs_property_list_clear(sdi_trx_list);
-	populate_sdi_transport_list(sdi_trx_list, io_select, true);
+	populate_sdi_transport_list(sdi_trx_list, io_select, deviceID, true);
 
 	obs_property_list_clear(sdi_4k_list);
 	populate_sdi_4k_transport_list(sdi_4k_list);
@@ -739,7 +741,8 @@ bool aja_io_selection_changed(void *data, obs_properties_t *props,
 		obs_properties_get(props, kUIPropSDITransport4K.id);
 	obs_property_list_clear(sdi_trx_list);
 	obs_property_list_clear(sdi_4k_trx_list);
-	populate_sdi_transport_list(sdi_trx_list, inp_sel, true);
+	populate_sdi_transport_list(sdi_trx_list, inp_sel,
+				    cardEntry->GetDeviceID(), true);
 	populate_sdi_4k_transport_list(sdi_4k_trx_list);
 	obs_property_set_visible(sdi_trx_list, is_sdi);
 	obs_property_set_visible(sdi_4k_trx_list,

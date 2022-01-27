@@ -38,7 +38,7 @@ class AJAOutput {
 public:
 	enum {
 		// min queue sizes computed in AJAOutput
-		kVideoQueueMaxSize = 15,
+		kVideoQueueMaxSize = 32,
 		kAudioQueueMaxSize =
 			96, // ~(48000 / 1024 samples per audio_frame) * 2sec
 	};

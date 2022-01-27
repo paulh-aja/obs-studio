@@ -19,6 +19,8 @@
 // Log AJA Output video/audio delay and av-sync
 // #define AJA_OUTPUT_STATS
 
+#define ENABLE_4K_HIGH_FRAMERATE false
+
 static constexpr uint32_t kNumCardFrames = 3;
 static const int64_t kDefaultStatPeriod = 3000000000;
 static const int64_t kAudioSyncAdjust = 20000;
@@ -243,7 +245,7 @@ void AJAOutput::QueueVideoFrame(struct video_data *frame, size_t size)
 		free_video_frame(&front.frame);
 		mVideoQueue->pop_front();
 	}
-
+	blog(LOG_DEBUG, "vid size = %zu", vf.size);
 	copy_video_data(frame, &vf.frame, size);
 
 	mVideoQueue->push_back(vf);
@@ -827,7 +829,8 @@ bool aja_output_device_changed(void *data, obs_properties_t *props,
 	}
 
 	obs_property_list_clear(vid_fmt_list);
-	populate_video_format_list(deviceID, vid_fmt_list, videoFormatChannel1);
+	populate_video_format_list(deviceID, vid_fmt_list, videoFormatChannel1,
+				   ENABLE_4K_HIGH_FRAMERATE);
 
 	obs_property_list_clear(pix_fmt_list);
 	populate_pixel_format_list(deviceID, pix_fmt_list);
@@ -835,7 +838,7 @@ bool aja_output_device_changed(void *data, obs_properties_t *props,
 	IOSelection io_select = static_cast<IOSelection>(
 		obs_data_get_int(settings, kUIPropOutput.id));
 	obs_property_list_clear(sdi_trx_list);
-	populate_sdi_transport_list(sdi_trx_list, io_select);
+	populate_sdi_transport_list(sdi_trx_list, io_select, deviceID);
 
 	obs_property_list_clear(sdi_4k_list);
 	populate_sdi_4k_transport_list(sdi_4k_list);
@@ -849,6 +852,19 @@ bool aja_output_dest_changed(obs_properties_t *props, obs_property_t *list,
 	UNUSED_PARAMETER(props);
 
 	blog(LOG_DEBUG, "AJA Output Dest Changed");
+
+	const char *cardID = obs_data_get_string(settings, kUIPropDevice.id);
+	if (!cardID || !cardID[0])
+		return false;
+
+	auto &cardManager = aja::CardManager::Instance();
+	auto cardEntry = cardManager.GetCardEntry(cardID);
+	if (!cardEntry) {
+		blog(LOG_DEBUG,
+		     "aja_output_dest_changed: Card Entry not found for %s",
+		     cardID);
+		return false;
+	}
 
 	bool itemFound = false;
 	int dest = obs_data_get_int(settings, kUIPropOutput.id);
@@ -893,7 +909,8 @@ bool aja_output_dest_changed(obs_properties_t *props, obs_property_t *list,
 		obs_properties_get(props, kUIPropSDITransport4K.id);
 	obs_property_list_clear(sdi_trx_list);
 	obs_property_list_clear(sdi_4k_trx_list);
-	populate_sdi_transport_list(sdi_trx_list, io_select);
+	populate_sdi_transport_list(sdi_trx_list, io_select,
+				    cardEntry->GetDeviceID());
 	populate_sdi_4k_transport_list(sdi_4k_trx_list);
 	obs_property_set_visible(sdi_trx_list, is_sdi);
 	obs_property_set_visible(sdi_4k_trx_list,
