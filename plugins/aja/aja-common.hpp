@@ -76,6 +76,7 @@ extern uint32_t CardNumAudioSystems(NTV2DeviceID id);
 extern bool CardCanDoSDIMonitorOutput(NTV2DeviceID id);
 extern bool CardCanDoHDMIMonitorInput(NTV2DeviceID id);
 extern bool CardCanDoHDMIMonitorOutput(NTV2DeviceID id);
+extern bool CardCanDoAnalogMonitorOutput(NTV2DeviceID id);
 extern bool CardCanDo1xSDI12G(NTV2DeviceID id);
 extern bool Is3GLevelB(CNTV2Card *card, NTV2Channel channel);
 extern NTV2VideoFormat GetLevelAFormatForLevelBFormat(NTV2VideoFormat vf);

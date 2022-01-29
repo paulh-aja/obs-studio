@@ -449,6 +449,11 @@ bool CardCanDoHDMIMonitorOutput(NTV2DeviceID id)
 		id == DEVICE_ID_KONA5_8KMK);
 }
 
+bool CardCanDoAnalogMonitorOutput(NTV2DeviceID id)
+{
+	return NTV2DeviceCanDoAnalogVideoOut(id);
+}
+
 // Cards capable of 1x SDI at 6G/12G.
 bool CardCanDo1xSDI12G(NTV2DeviceID id)
 {

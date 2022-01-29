@@ -283,6 +283,19 @@ bool CardEntry::InputSelectionReady(IOSelection io, NTV2DeviceID id,
 	return false;
 }
 
+bool ForceFramestore4(IOSelection io, NTV2DeviceID id)
+{
+	if ((aja::CardCanDoHDMIMonitorOutput(id) &&
+			io == IOSelection::HDMIMonitorOut) ||
+		(aja::CardCanDoSDIMonitorOutput(id) &&
+			io == IOSelection::SDI5) ||
+		(aja::CardCanDoAnalogMonitorOutput(id) &&
+			io == IOSelection::AnalogOut)) {
+		return true;
+	}
+	return false;
+}
+
 bool CardEntry::OutputSelectionReady(IOSelection io, NTV2DeviceID id,
 				     const std::string &owner) const
 {
@@ -291,14 +304,9 @@ bool CardEntry::OutputSelectionReady(IOSelection io, NTV2DeviceID id,
 	 * 2. SDI Monitor on Io 4K/Io 4K Plus, etc. uses framestore 4.
 	 * 3. Everything else...
 	 */
-	if (aja::CardCanDoHDMIMonitorOutput(id) &&
-	    io == IOSelection::HDMIMonitorOut) {
-		NTV2Channel hdmiMonChannel = NTV2_CHANNEL4;
-		return ChannelReady(hdmiMonChannel, owner);
-	} else if (aja::CardCanDoSDIMonitorOutput(id) &&
-		   io == IOSelection::SDI5) {
-		NTV2Channel sdiMonChannel = NTV2_CHANNEL4;
-		return ChannelReady(sdiMonChannel, owner);
+	if (ForceFramestore4(io, id)) {
+		NTV2Channel ch = NTV2_CHANNEL4;
+		return ChannelReady(ch, owner);
 	} else if (id == DEVICE_ID_KONA1 && io == IOSelection::SDI1) {
 		return true;
 	} else {
@@ -380,36 +388,18 @@ bool CardEntry::AcquireOutputSelection(IOSelection io, NTV2DeviceID id,
 	NTV2OutputDestinations outputDests;
 	aja::IOSelectionToOutputDests(io, outputDests);
 
-	// Handle acquiring special case outputs --
-	// HDMI Monitor uses framestore 4
-	if (aja::CardCanDoHDMIMonitorOutput(id) &&
-	    io == IOSelection::HDMIMonitorOut) {
-		NTV2Channel hdmiMonChannel = NTV2_CHANNEL4;
-		if (AcquireChannel(hdmiMonChannel, NTV2_MODE_DISPLAY, owner)) {
+	if (ForceFramestore4(io, id)) {
+		NTV2Channel ch = NTV2_CHANNEL4;
+		if (AcquireChannel(ch, NTV2_MODE_DISPLAY, owner)) {
 			blog(LOG_DEBUG, "Output %s acquired channel %s",
 			     owner.c_str(),
-			     NTV2ChannelToString(hdmiMonChannel).c_str());
-			acquiredChannels.push_back(hdmiMonChannel);
+			     NTV2ChannelToString(ch).c_str());
+			acquiredChannels.push_back(ch);
 		} else {
 			blog(LOG_DEBUG,
 			     "Output %s could not acquire channel %s",
 			     owner.c_str(),
-			     NTV2ChannelToString(hdmiMonChannel).c_str());
-		}
-	} else if (aja::CardCanDoSDIMonitorOutput(id) &&
-		   io == IOSelection::SDI5) {
-		// SDI Monitor on io4K/io4K+/etc. uses framestore 4
-		NTV2Channel sdiMonChannel = NTV2_CHANNEL4;
-		if (AcquireChannel(sdiMonChannel, NTV2_MODE_DISPLAY, owner)) {
-			blog(LOG_DEBUG, "Output %s acquired channel %s",
-			     owner.c_str(),
-			     NTV2ChannelToString(sdiMonChannel).c_str());
-			acquiredChannels.push_back(sdiMonChannel);
-		} else {
-			blog(LOG_DEBUG,
-			     "Output %s could not acquire channel %s",
-			     owner.c_str(),
-			     NTV2ChannelToString(sdiMonChannel).c_str());
+			     NTV2ChannelToString(ch).c_str());
 		}
 	} else {
 		// Handle acquiring all other channels
@@ -446,23 +436,11 @@ bool CardEntry::ReleaseOutputSelection(IOSelection io, NTV2DeviceID id,
 	aja::IOSelectionToOutputDests(io, currentOutputDests);
 	uint32_t releasedCount = 0;
 
-	// Handle releasing special case outputs --
-	// HDMI Monitor uses framestore 4
-	if (aja::CardCanDoHDMIMonitorOutput(id) &&
-	    io == IOSelection::HDMIMonitorOut) {
-		NTV2Channel hdmiMonChannel = NTV2_CHANNEL4;
-		if (ReleaseChannel(hdmiMonChannel, NTV2_MODE_DISPLAY, owner)) {
+	if (ForceFramestore4(io, id)) {
+		NTV2Channel ch = NTV2_CHANNEL4;
+		if (ReleaseChannel(ch, NTV2_MODE_DISPLAY, owner)) {
 			blog(LOG_DEBUG, "Released Channel %s",
-			     NTV2ChannelToString(hdmiMonChannel).c_str());
-			releasedCount++;
-		}
-	} else if (aja::CardCanDoSDIMonitorOutput(id) &&
-		   io == IOSelection::SDI5) {
-		// SDI Monitor on io4K/io4K+/etc. uses framestore 4
-		NTV2Channel sdiMonChannel = NTV2_CHANNEL4;
-		if (ReleaseChannel(sdiMonChannel, NTV2_MODE_DISPLAY, owner)) {
-			blog(LOG_DEBUG, "Released Channel %s",
-			     NTV2ChannelToString(sdiMonChannel).c_str());
+			     NTV2ChannelToString(ch).c_str());
 			releasedCount++;
 		}
 	} else {

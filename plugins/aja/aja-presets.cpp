@@ -1369,6 +1369,23 @@ void RoutingConfigurator::build_preset_table()
 		  false,
 		  false}},
 		/*
+		* Analog YCbCr Dislay
+		*/
+		{"SD_Analog_YCbCr_Display",
+		 {"SD_Analog_YCbCr_Display",
+		  ConnectionKind::Analog,
+		  NTV2_MODE_DISPLAY,
+		  RasterDefinition::SD,
+		  HDMIWireFormat::Unknown,
+		  VPIDStandard_Unknown,
+		  1,
+		  1,
+		  0,
+		  "fb[{ch1}][0]->analog[{ch1}][0];",
+		  {},
+		  false,
+		  false}},
+		/*
         * SDI YCbCr Display
         */
 		{"SD_ST352_YCbCr_Display",

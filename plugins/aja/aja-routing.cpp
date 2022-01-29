@@ -396,6 +396,9 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 				hwf = HDMIWireFormat::UHD_4K_YCBCR;
 			}
 		}
+	} else if (NTV2_OUTPUT_DEST_IS_ANALOG(init_dest)) {
+		kind = ConnectionKind::Analog;
+		hwf = HDMIWireFormat::Unknown;
 	} else {
 		blog(LOG_WARNING,
 		     "Unsupported connection kind. SDI and HDMI only!");
