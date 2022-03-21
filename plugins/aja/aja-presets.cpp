@@ -948,17 +948,22 @@ void RoutingConfigurator::build_preset_table()
 		//     HDMIWireFormat::Unknown,
 		//     VPIDStandard_2160_Single_6Gb, true, false}},
 		// TODO(paulh): Find out proper settings for this route
-		// { "UHD4K_ST2018_12G_Squares_2SI_RGB_Display", {
-		//     "UHD4K_ST2018_12G_Squares_2SI_RGB_Display",
-		//     ConnectionKind::SDI,
-		//     NTV2_MODE_DISPLAY,
-		//     2, 4,
-		//     (kEnable12GOut | kEnable4KTSI),
-		//     "",
-		//     {},
-		//     RasterDefinition::UHD_4K,
-		//     HDMIWireFormat::Unknown,
-		//     VPIDStandard_2160_Single_12Gb, true, false}},
+		{"UHD4K_ST2018_12G_Squares_2SI_RGB_Display",
+		 {"UHD4K_ST2018_12G_Squares_2SI_RGB_Display",
+		  ConnectionKind::SDI,
+		  NTV2_MODE_DISPLAY,
+		  RasterDefinition::UHD_4K,
+		  HDMIWireFormat::Unknown,
+		  VPIDStandard_2160_Single_12Gb,
+		  2,
+		  4,
+		  (kEnable12GOut | kEnable4KTSI | kConvert3GaRGBOut),
+		  "fb[{ch1}][2]->dlo[{ch1}][0];"
+		  "dlo[{ch1}][0]->sdi[{ch1}][0];"
+		  "dlo[{ch1}][1]->sdi[{ch1}][1];",
+		  {},
+		  true,
+		  false}},
 		// { "UHD28K_ST2082_Dual_12G_RGB_Display", {
 		//     "UHD28K_ST2082_Dual_12G_RGB_Display",
 		//     ConnectionKind::SDI,
