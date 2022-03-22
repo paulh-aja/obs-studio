@@ -106,6 +106,17 @@ if(LIBAJANTV2_FOUND)
       ${AJA_LIBRARIES_INCLUDE_DIR}/ajabase ${AJA_LIBRARIES_INCLUDE_DIR}/ajantv2
       ${AJA_LIBRARIES_INCLUDE_DIR}/ajantv2/includes)
 
+  if(WIN32)
+    set(AJA_LIBRARIES_INCLUDE_DIRS ${AJA_LIBRARIES_INCLUDE_DIRS}
+                                   ${AJA_LIBRARIES_INCLUDE_DIR}/ajantv2/src/win)
+  elseif(APPLE)
+    set(AJA_LIBRARIES_INCLUDE_DIRS ${AJA_LIBRARIES_INCLUDE_DIRS}
+                                   ${AJA_LIBRARIES_INCLUDE_DIR}/ajantv2/src/mac)
+  elseif(UNIX AND NOT APPLE)
+    set(AJA_LIBRARIES_INCLUDE_DIRS ${AJA_LIBRARIES_INCLUDE_DIRS}
+                                   ${AJA_LIBRARIES_INCLUDE_DIR}/ajantv2/src/lin)
+  endif()
+
   set(LIBAJANTV2_LIBRARIES ${AJA_NTV2_LIB})
   if(AJA_NTV2_DEBUG_LIB STREQUAL "AJA_NTV2_DEBUG_LIB-NOTFOUND")
     set(AJA_NTV2_DEBUG_LIB ${AJA_NTV2_LIB})
