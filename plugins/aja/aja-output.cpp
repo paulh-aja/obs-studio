@@ -99,8 +99,6 @@ AJAOutput::AJAOutput(CNTV2Card *card, const std::string &cardID,
 	  mWriteCardFrame{0},
 	  mPlayCardFrame{0},
 	  mPlayCardNext{0},
-	  mFrameRateNum{0},
-	  mFrameRateDen{0},
 	  mVideoQueueFrames{0},
 	  mVideoWriteFrames{0},
 	  mVideoPlayFrames{0},
@@ -113,6 +111,8 @@ AJAOutput::AJAOutput(CNTV2Card *card, const std::string &cardID,
 	  mAudioVideoSync{0},
 	  mAudioAdjust{0},
 	  mLastStatTime{0},
+	  mCardFrameTimeNanos{0},
+	  mOBSFrameTimeNanos{0},
 #ifdef AJA_WRITE_DEBUG_WAV
 	  mWaveWriter{nullptr},
 #endif
@@ -159,7 +159,6 @@ void AJAOutput::Initialize(const OutputProps &props)
 	calculate_card_frame_indices(kNumCardFrames, mCard->GetDeviceID(),
 				     props.Channel(), props.videoFormat,
 				     props.pixelFormat);
-
 	mCard->SetOutputFrame(props.Channel(), mWriteCardFrame);
 	mCard->WaitForOutputVerticalInterrupt(props.Channel());
 	const auto &cardFrameRate =
@@ -167,10 +166,9 @@ void AJAOutput::Initialize(const OutputProps &props)
 	ULWord fpsNum = 0;
 	ULWord fpsDen = 0;
 	GetFramesPerSecond(cardFrameRate, fpsNum, fpsDen);
-	mFrameRateNum = fpsNum;
-	mFrameRateDen = fpsDen;
-	mVideoDelay = ((int64_t)mNumCardFrames - 0) * 1000000 * mFrameRateDen /
-		      mFrameRateNum;
+	mVideoDelay = ((int64_t)mNumCardFrames - 0) * 1000000 * fpsDen / fpsNum;
+	mCardFrameTimeNanos =
+		(uint32_t)(((double)fpsDen / (double)fpsNum) * 1e+9);
 	mAudioRate = props.audioSampleRate;
 	SetOutputProps(props);
 }
@@ -444,10 +442,6 @@ void AJAOutput::DMAVideoFromQueue()
 {
 	auto &vf = mVideoQueue->front();
 	auto data = vf.frame.data[0];
-
-	if (!mFirstVideoTS)
-		mFirstVideoTS = vf.frame.timestamp;
-	mLastVideoTS = vf.frame.timestamp;
 
 	// find the next buffer
 	uint32_t writeCardFrame = mWriteCardFrame + 1;
@@ -753,7 +747,7 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 #endif
 		}
 
-		os_sleep_ms(1);
+		// os_sleep_ms(1);
 	}
 
 	ajaOutput->mAudioStarted = false;
@@ -1127,6 +1121,16 @@ static bool aja_output_start(void *data)
 	ajaOutput->CacheConnections(xpt_cnx);
 	aja::Routing::ConfigureOutputAudio(outputProps, card);
 
+	struct obs_video_info ovi;
+	uint32_t obs_fps_num = 0;
+	uint32_t obs_fps_den = 0;
+	if (obs_get_video_info(&ovi)) {
+		obs_fps_num = ovi.fps_num;
+		obs_fps_den = ovi.fps_den;
+	}
+	ajaOutput->mOBSFrameTimeNanos =
+		(uint32_t)(((double)obs_fps_den / (double)obs_fps_num) * 1e+9);
+
 	const auto &formatDesc = outputProps.FormatDesc();
 	struct video_scale_info scaler = {};
 	scaler.format = aja::AJAPixelFormatToOBSVideoFormat(pixelFormat);
@@ -1211,10 +1215,23 @@ static void aja_output_raw_video(void *data, struct video_data *frame)
 	auto ajaOutput = (AJAOutput *)data;
 	if (!ajaOutput)
 		return;
-
-	auto outputProps = ajaOutput->GetOutputProps();
-	auto rasterBytes = outputProps.FormatDesc().GetTotalRasterBytes();
-	ajaOutput->QueueVideoFrame(frame, rasterBytes);
+	if (!ajaOutput->mFirstVideoTS)
+		ajaOutput->mFirstVideoTS = frame->timestamp;
+	bool queueFrame = false;
+	uint32_t frameTime = frame->timestamp - ajaOutput->mLastVideoTS;
+	if (ajaOutput->mCardFrameTimeNanos > ajaOutput->mOBSFrameTimeNanos) {
+		if (frameTime >= ajaOutput->mCardFrameTimeNanos)
+			queueFrame = true;
+	} else {
+		queueFrame = true;
+	}
+	if (queueFrame) {
+		auto outputProps = ajaOutput->GetOutputProps();
+		auto rasterBytes =
+			outputProps.FormatDesc().GetTotalRasterBytes();
+		ajaOutput->QueueVideoFrame(frame, rasterBytes);
+		ajaOutput->mLastVideoTS = frame->timestamp;
+	}
 }
 
 static void aja_output_raw_audio(void *data, struct audio_data *frames)

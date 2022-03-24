@@ -100,8 +100,6 @@ public:
 	uint32_t mWriteCardFrame;
 	uint32_t mPlayCardFrame;
 	uint32_t mPlayCardNext;
-	uint32_t mFrameRateNum;
-	uint32_t mFrameRateDen;
 
 	uint64_t mVideoQueueFrames;
 	uint64_t mVideoWriteFrames;
@@ -117,6 +115,9 @@ public:
 	int64_t mAudioVideoSync;
 	int64_t mAudioAdjust;
 	int64_t mLastStatTime;
+
+	uint32_t mCardFrameTimeNanos;
+	uint32_t mOBSFrameTimeNanos;
 #ifdef AJA_WRITE_DEBUG_WAV
 	AJAWavWriter *mWaveWriter;
 #endif
