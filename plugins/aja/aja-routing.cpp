@@ -460,9 +460,21 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 		for (uint32_t i = (uint32_t)start_channel_index;
 		     i < (start_channel_index + rp.num_channels); i++) {
 			NTV2Channel channel = GetNTV2ChannelForIndex(i);
+			bool set_transmit_enable = (mode == NTV2_MODE_DISPLAY);
+			if (rp.IsRetail12GPreset() &&
+			    IsRetail12GSDICard(props.deviceID)) {
+				// Kona5/io4K+ use a special routing for 6G/12G SDI. Only set SDI3 to output.
+				if (channel == NTV2_CHANNEL3 ||
+				    channel == NTV2_CHANNEL4)
+					set_transmit_enable = true;
+				else {
+					card->GetSDITransmitEnable(
+						channel, set_transmit_enable);
+				}
+			}
 			if (::NTV2DeviceHasBiDirectionalSDI(deviceID)) {
-				card->SetSDITransmitEnable(
-					channel, mode == NTV2_MODE_DISPLAY);
+				card->SetSDITransmitEnable(channel,
+							   set_transmit_enable);
 			}
 			card->SetSDIOut3GEnable(channel,
 						rp.flags & kEnable3GOut);
@@ -489,8 +501,19 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 	for (uint32_t i = (uint32_t)start_framestore_index;
 	     i < (start_framestore_index + rp.num_framestores); i++) {
 		NTV2Channel channel = GetNTV2ChannelForIndex(i);
+		NTV2Mode framestore_mode = mode;
+		if (rp.IsRetail12GPreset() &&
+		    IsRetail12GSDICard(props.deviceID)) {
+			// Kona5/io4K+ use a special routing for 6G/12G SDI. Only change the mode of framestore 3.
+			if (channel == NTV2_CHANNEL3 ||
+			    channel == NTV2_CHANNEL4) {
+				framestore_mode = NTV2_MODE_DISPLAY;
+			} else {
+				card->GetMode(channel, framestore_mode);
+			}
+		}
 		card->EnableChannel(channel);
-		card->SetMode(channel, mode);
+		card->SetMode(channel, framestore_mode);
 		card->SetVANCMode(NTV2_VANCMODE_OFF, channel);
 		card->SetVideoFormat(props.videoFormat, false, false, channel);
 		card->SetFrameBufferFormat(channel, props.pixelFormat);

@@ -24,6 +24,7 @@ struct RoutingPreset {
 	std::vector<NTV2DeviceID> device_ids;
 	bool is_rgb;
 	bool verbatim;
+	bool IsRetail12GPreset();
 };
 
 using RoutingPresets = std::vector<RoutingPreset>;

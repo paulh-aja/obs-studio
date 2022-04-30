@@ -6,6 +6,16 @@
 
 namespace aja {
 
+bool RoutingPreset::IsRetail12GPreset()
+{
+	return (name == "UHD4K_ST2018_6G_Squares_2SI_RGB_Capture (Kona5/io4K+)" ||
+		name == "UHD4K_ST2018_12G_Squares_2SI_RGB_Capture (Kona5/io4K+)" ||
+		name == "UHD4K_ST2018_6G_Squares_2SI_YCbCr_Capture (Kona5/io4K+)" ||
+		name == "UHD4K_ST2018_12G_Squares_2SI_YCbCr_Capture (Kona5/io4K+)" ||
+		name == "UHD4K_ST2018_6G_Squares_2SI_YCbCr_Display (Kona5/io4K+)" ||
+		name == "UHD4K_ST2018_12G_Squares_2SI_YCbCr_Display (Kona5/io4K+)");
+}
+
 RoutingConfigurator::RoutingConfigurator()
 {
 	build_preset_table();
