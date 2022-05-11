@@ -49,6 +49,10 @@ _configure_obs() {
         PORTABLE_BUILD="ON"
     fi
 
+    if [ "${DISABLE_BROWSER}" ]; then
+        BROWSER_OPTION="-DENABLE_BROWSER=OFF"
+    fi
+
     if [ "${DISABLE_PIPEWIRE}" ]; then
         PIPEWIRE_OPTION="-DENABLE_PIPEWIRE=OFF"
     fi
@@ -57,7 +61,8 @@ _configure_obs() {
         -DCEF_ROOT_DIR="${DEPS_BUILD_DIR}/cef_binary_${LINUX_CEF_BUILD_VERSION:-${CI_LINUX_CEF_VERSION}}_linux64" \
         -DCMAKE_BUILD_TYPE=${BUILD_CONFIG} \
         -DLINUX_PORTABLE=${PORTABLE_BUILD:-OFF} \
-        -DENABLE_AJA=OFF \
+        -DAJASDKPath="${DEPS_BUILD_DIR}" \
+        ${BROWSER_OPTION} \
         ${PIPEWIRE_OPTION} \
         ${YOUTUBE_OPTIONS} \
         ${TWITCH_OPTIONS} \
@@ -101,6 +106,7 @@ print_usage() {
             "-q, --quiet                    : Suppress most build process output\n" \
             "-v, --verbose                  : Enable more verbose build process output\n" \
             "-p, --portable                 : Create portable build (default: off)\n" \
+            "--disable-browser              : Disable building the OBS Browser plugin (default: off)\n" \
             "--disable-pipewire             : Disable building with PipeWire support (default: off)\n" \
             "--build-dir                    : Specify alternative build directory (default: build)\n"
 }
@@ -114,6 +120,7 @@ build-obs-main() {
                 -v | --verbose ) export VERBOSE=TRUE; shift ;;
                 -p | --portable ) export PORTABLE=TRUE; shift ;;
                 --disable-pipewire ) DISABLE_PIPEWIRE=TRUE; shift ;;
+                --disable-browser ) DISABLE_BROWSER=TRUE; shift ;;
                 --build-dir ) BUILD_DIR="${2}"; shift 2 ;;
                 -- ) shift; break ;;
                 * ) break ;;
