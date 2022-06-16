@@ -19,6 +19,7 @@
 // Log AJA Output video/audio delay and av-sync
 // #define AJA_OUTPUT_STATS
 
+static constexpr uint32_t kOutputAudioChannels = 8;
 static constexpr uint32_t kNumCardFrames = 3;
 static const int64_t kDefaultStatPeriod = 3000000000;
 static const int64_t kAudioSyncAdjust = 20000;
@@ -290,7 +291,7 @@ void AJAOutput::QueueAudioFrames(struct audio_data *frames, size_t size)
 
 	mAudioQueue->push_back(af);
 	mAudioQueueSamples +=
-		size / (kDefaultAudioChannels * kDefaultAudioSampleSize);
+		size / (kOutputAudioChannels * kDefaultAudioSampleSize);
 }
 
 void AJAOutput::ClearVideoQueue()
@@ -367,12 +368,12 @@ void AJAOutput::DMAAudioFromQueue(NTV2AudioSystem audioSys)
 	if (mAudioPlayCursor <= mAudioWriteCursor) {
 		audioPlaySamples =
 			(mAudioWriteCursor - mAudioPlayCursor) /
-			(kDefaultAudioChannels * kDefaultAudioSampleSize);
+			(kOutputAudioChannels * kDefaultAudioSampleSize);
 	} else {
 		audioPlaySamples =
 			(mAudioWrapAddress - mAudioPlayCursor +
 			 mAudioWriteCursor) /
-			(kDefaultAudioChannels * kDefaultAudioSampleSize);
+			(kOutputAudioChannels * kDefaultAudioSampleSize);
 	}
 	mAudioDelay = 1000000 * (int64_t)audioPlaySamples / mAudioRate;
 
@@ -384,7 +385,7 @@ void AJAOutput::DMAAudioFromQueue(NTV2AudioSystem audioSys)
 				(uint32_t)mAudioAdjust * mAudioRate / 1000000;
 			uint32_t adjustSize = adjustSamples *
 					      kDefaultAudioSampleSize *
-					      kDefaultAudioChannels;
+					      kOutputAudioChannels;
 			if (adjustSize <= sizeLeft) {
 				af.offset += adjustSize;
 				sizeLeft -= adjustSize;
@@ -395,7 +396,7 @@ void AJAOutput::DMAAudioFromQueue(NTV2AudioSystem audioSys)
 			} else {
 				uint32_t samples = (uint32_t)sizeLeft /
 						   (kDefaultAudioSampleSize *
-						    kDefaultAudioChannels);
+						    kOutputAudioChannels);
 				af.offset += sizeLeft;
 				sizeLeft = 0;
 				adjustSamples -= samples;
@@ -411,7 +412,7 @@ void AJAOutput::DMAAudioFromQueue(NTV2AudioSystem audioSys)
 						 mAudioRate / 1000000;
 			uint32_t adjustSize = adjustSamples *
 					      kDefaultAudioSampleSize *
-					      kDefaultAudioChannels;
+					      kOutputAudioChannels;
 			uint8_t *silentBuffer = new uint8_t[adjustSize];
 			memset(silentBuffer, 0, adjustSize);
 			dma_audio_samples(audioSys, (uint32_t *)silentBuffer,
@@ -538,7 +539,7 @@ void AJAOutput::dma_audio_samples(NTV2AudioSystem audioSys, uint32_t *data,
 	bool result = false;
 
 	mAudioWriteSamples +=
-		size / (kDefaultAudioChannels * kDefaultAudioSampleSize);
+		size / (kOutputAudioChannels * kDefaultAudioSampleSize);
 
 	if ((mAudioWriteCursor + size) > mAudioWrapAddress) {
 		const uint32_t remainingBuffer =
@@ -989,7 +990,7 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 		obs_data_get_int(settings, kUIPropSDITransport.id));
 	outputProps.sdi4kTransport = static_cast<SDITransport4K>(
 		obs_data_get_int(settings, kUIPropSDITransport4K.id));
-	outputProps.audioNumChannels = kDefaultAudioChannels;
+	outputProps.audioNumChannels = kOutputAudioChannels;
 	outputProps.audioSampleSize = kDefaultAudioSampleSize;
 	outputProps.audioSampleRate = kDefaultAudioSampleRate;
 

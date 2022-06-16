@@ -13,9 +13,9 @@ SourceProps::SourceProps()
 	  pixelFormat{NTV2_FBF_INVALID},
 	  sdiTransport{SDITransport::SingleLink},
 	  sdi4kTransport{SDITransport4K::TwoSampleInterleave},
-	  audioNumChannels{8},
-	  audioSampleSize{4},
-	  audioSampleRate{48000},
+	  audioNumChannels{kDefaultAudioChannels},
+	  audioSampleSize{kDefaultAudioSampleSize},
+	  audioSampleRate{kDefaultAudioSampleRate},
 	  vpids{},
 	  autoDetect{false},
 	  deactivateWhileNotShowing{false}
@@ -30,9 +30,9 @@ SourceProps::SourceProps(NTV2DeviceID devID)
 	  pixelFormat{NTV2_FBF_INVALID},
 	  sdiTransport{SDITransport::SingleLink},
 	  sdi4kTransport{SDITransport4K::TwoSampleInterleave},
-	  audioNumChannels{8},
-	  audioSampleSize{4},
-	  audioSampleRate{48000},
+	  audioNumChannels{kDefaultAudioChannels},
+	  audioSampleSize{kDefaultAudioSampleSize},
+	  audioSampleRate{kDefaultAudioSampleRate},
 	  vpids{},
 	  autoDetect{false},
 	  deactivateWhileNotShowing{false}
@@ -198,6 +198,10 @@ speaker_layout SourceProps::SpeakerLayout() const
 {
 	if (audioNumChannels == 2)
 		return SPEAKERS_STEREO;
+	else if (audioNumChannels == 4)
+		return SPEAKERS_4POINT0;
+	else if (audioNumChannels == 6)
+		return SPEAKERS_5POINT1;
 	// NTV2 is always at least 8ch on modern boards
 	return SPEAKERS_7POINT1;
 }
@@ -213,8 +217,8 @@ OutputProps::OutputProps(NTV2DeviceID devID)
 	  pixelFormat{NTV2_FBF_INVALID},
 	  sdi4kTransport{SDITransport4K::TwoSampleInterleave},
 	  audioNumChannels{8},
-	  audioSampleSize{4},
-	  audioSampleRate{48000}
+	  audioSampleSize{kDefaultAudioSampleSize},
+	  audioSampleRate{kDefaultAudioSampleRate}
 {
 }
 

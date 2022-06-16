@@ -14,7 +14,37 @@
 #include <ajantv2/includes/ntv2utils.h>
 
 #define NSEC_PER_SEC 1000000000LL
-#define NTV2_AUDIOSIZE_MAX (401 * 1024)
+
+/* The maximum number of bytes of 96KHz audio that can be transferred for a single frame.
+ * Worst case assumes the AJA card max 16 channels of audio, at 4 bytes per sample, and 67 milliseconds per frame.
+ * (assuming the lowest possible frame rate of 14.98 fps).
+ * 96,000 samples per second requires 6,408 samples x 4 bytes/sample x 16 = 410,112 bytes
+ * 401K will suffice, with 512 bytes to spare
+ */
+static constexpr size_t kHostAudioBufferSize = (96000 / 14.98) * 4 * 8;
+static constexpr int kDefaultAudioCaptureChannels = 2;
+
+static inline audio_repack_mode_t ConvertRepackFormat(speaker_layout format,
+						      bool swap = false)
+{
+	switch (format) {
+	case SPEAKERS_STEREO:
+		return repack_mode_8to2ch;
+	case SPEAKERS_2POINT1:
+		return repack_mode_8to3ch;
+	case SPEAKERS_4POINT0:
+		return repack_mode_8to4ch;
+	case SPEAKERS_4POINT1:
+		return swap ? repack_mode_8to5ch_swap : repack_mode_8to5ch;
+	case SPEAKERS_5POINT1:
+		return swap ? repack_mode_8to6ch_swap : repack_mode_8to6ch;
+	case SPEAKERS_7POINT1:
+		return swap ? repack_mode_8ch_swap : repack_mode_8ch;
+	default:
+		assert(false && "No repack requested");
+		return (audio_repack_mode_t)-1;
+	}
+}
 
 AJASource::AJASource(obs_source_t *source)
 	: mVideoBuffer{},
@@ -232,6 +262,9 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 
 	obs_data_t *settings = obs_source_get_settings(ajaSource->mSource);
 
+	AudioRepacker *audioRepacker = new AudioRepacker(ConvertRepackFormat(sourceProps.SpeakerLayout()));
+	uint8_t *repackBuffer = new uint8_t[kHostAudioBufferSize];
+
 	while (ajaSource->IsCapturing()) {
 		if (card->GetModelName() == "(Not Found)") {
 			os_sleep_ms(250);
@@ -276,7 +309,8 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 		}
 
 		card->ReadAudioLastIn(offsets.currentAddress, audioSystem);
-		offsets.currentAddress &= ~0x3; // Force DWORD alignment
+		// offsets.currentAddress &= ~0x3; // Force DWORD alignment
+		offsets.currentAddress += 1;
 		offsets.currentAddress += offsets.readOffset;
 		if (offsets.currentAddress < offsets.lastAddress) {
 			offsets.bytesRead =
@@ -327,8 +361,10 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 			if (offsets.bytesRead >
 			    ajaSource->mAudioBuffer.GetByteCount()) {
 				blog(LOG_DEBUG,
-				     "AJASource::CaptureThread: Audio overrun (3)! Buffer Size: %d, Bytes Captured: %d",
+				     "AJASource::CaptureThread: Audio overrun (3)! Buffer Size: %d, Current: %d - Last: %d = Bytes Captured: %d",
 				     ajaSource->mAudioBuffer.GetByteCount(),
+					 offsets.currentAddress,
+					 offsets.lastAddress,
 				     offsets.bytesRead);
 				ResetAudioBufferOffsets(card, audioSystem,
 							offsets);
@@ -345,14 +381,39 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 		if (!audioOverrun) {
 			offsets.lastAddress = offsets.currentAddress;
 			obs_source_audio audioPacket;
-			audioPacket.samples_per_sec = 48000;
-			audioPacket.format = AUDIO_FORMAT_32BIT;
-			audioPacket.speakers = SPEAKERS_7POINT1;
-			audioPacket.frames = offsets.bytesRead / 32;
-			audioPacket.timestamp =
-				get_sample_time(audioPacket.frames, 48000);
-			audioPacket.data[0] = (uint8_t *)ajaSource->mAudioBuffer
-						      .GetHostPointer();
+			audioPacket.samples_per_sec =
+				sourceProps.audioSampleRate;
+			audioPacket.format = sourceProps.AudioFormat();
+			audioPacket.speakers = sourceProps.SpeakerLayout();
+			uint32_t cardAudioSize = offsets.bytesRead /
+						 (kDefaultAudioChannels *
+						  sourceProps.audioSampleSize);
+			if (sourceProps.audioNumChannels >= 2 &&
+			    sourceProps.audioNumChannels <= 6) {
+				audioRepacker->repack(
+					(uint8_t *)ajaSource->mAudioBuffer
+						.GetHostPointer(),
+					cardAudioSize);
+				audioPacket.frames = cardAudioSize;
+				audioPacket.timestamp = get_sample_time(
+					audioPacket.frames,
+					sourceProps.audioSampleRate);
+				audioPacket.data[0] = (*audioRepacker)->packet_buffer;
+				// memcpy(repackBuffer,
+				//        (*audioRepacker)
+				// 	       ->packet_buffer,
+				//        (*audioRepacker)->packet_size);
+				// audioPacket.data[0] =
+				// 	(uint8_t *)repackBuffer;
+			} else {
+				audioPacket.frames = cardAudioSize;
+				audioPacket.timestamp = get_sample_time(
+					audioPacket.frames,
+					sourceProps.audioSampleRate);
+				audioPacket.data[0] =
+					(uint8_t *)ajaSource->mAudioBuffer
+						.GetHostPointer();
+			}
 			obs_source_output_audio(ajaSource->mSource,
 						&audioPacket);
 		}
@@ -399,7 +460,14 @@ void AJASource::CaptureThread(AJAThread *thread, void *data)
 	}
 
 	blog(LOG_INFO, "AJASource::Capturethread: Thread loop stopped");
-
+	if (audioRepacker) {
+		delete audioRepacker;
+		audioRepacker = nullptr;
+	}
+	if (repackBuffer) {
+		delete [] repackBuffer;
+		repackBuffer = nullptr;
+	}
 	ajaSource->GenerateTestPattern(sourceProps.videoFormat,
 				       sourceProps.pixelFormat,
 				       NTV2_TestPatt_Black);
@@ -686,6 +754,8 @@ bool aja_source_device_changed(void *data, obs_properties_t *props,
 		obs_properties_get(props, kUIPropSDITransport.id);
 	obs_property_t *sdi_4k_list =
 		obs_properties_get(props, kUIPropSDITransport4K.id);
+	obs_property_t *audio_channels_list =
+		obs_properties_get(props, kUIPropAudioCaptureChannels.id);
 
 	obs_property_list_clear(vid_fmt_list);
 	obs_property_list_add_int(vid_fmt_list, obs_module_text("Auto"),
@@ -705,6 +775,12 @@ bool aja_source_device_changed(void *data, obs_properties_t *props,
 
 	obs_property_list_clear(sdi_4k_list);
 	populate_sdi_4k_transport_list(sdi_4k_list);
+
+	obs_property_list_clear(audio_channels_list);
+	obs_property_list_add_int(audio_channels_list, "2", (long long)2);
+	obs_property_list_add_int(audio_channels_list, "4", (long long)4);
+	obs_property_list_add_int(audio_channels_list, "5.1", (long long)6);
+	obs_property_list_add_int(audio_channels_list, "8", (long long)8);
 
 	populate_io_selection_input_list(cardID, ajaSource->GetName(), deviceID,
 					 io_select_list);
@@ -782,7 +858,7 @@ void *aja_source_create(obs_data_t *settings, obs_source_t *source)
 	obs_source_set_async_decoupled(source, true);
 
 	ajaSource->SetOBSSource(source);
-	ajaSource->ResetAudioBuffer(NTV2_AUDIOSIZE_MAX);
+	ajaSource->ResetAudioBuffer(kHostAudioBufferSize);
 	ajaSource->Activate(false);
 
 	obs_source_update(source, settings);
@@ -908,6 +984,8 @@ static void aja_source_update(void *data, obs_data_t *settings)
 		obs_data_get_int(settings, kUIPropSDITransport.id));
 	auto sdi_t4k_select = static_cast<SDITransport4K>(
 		obs_data_get_int(settings, kUIPropSDITransport4K.id));
+	auto num_audio_channels =
+		obs_data_get_int(settings, kUIPropAudioCaptureChannels.id);
 	bool deactivateWhileNotShowing =
 		obs_data_get_bool(settings, kUIPropDeactivateWhenNotShowing.id);
 	const std::string &wantCardID =
@@ -989,6 +1067,7 @@ static void aja_source_update(void *data, obs_data_t *settings)
 			? SDITransport::Unknown
 			: static_cast<SDITransport>(sdi_trx_select);
 	want_props.sdi4kTransport = sdi_t4k_select;
+	want_props.audioNumChannels = num_audio_channels;
 	want_props.vpids.clear();
 	want_props.deactivateWhileNotShowing = deactivateWhileNotShowing;
 	if (aja::IsIOSelectionSDI(io_select)) {
@@ -1099,6 +1178,10 @@ static obs_properties_t *aja_source_get_properties(void *data)
 	obs_properties_add_list(props, kUIPropSDITransport4K.id,
 				obs_module_text(kUIPropSDITransport4K.text),
 				OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_properties_add_list(
+		props, kUIPropAudioCaptureChannels.id,
+		obs_module_text(kUIPropAudioCaptureChannels.text),
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_properties_add_bool(
 		props, kUIPropDeactivateWhenNotShowing.id,
 		obs_module_text(kUIPropDeactivateWhenNotShowing.text));
@@ -1126,6 +1209,8 @@ void aja_source_get_defaults(obs_data_t *settings)
 	obs_data_set_default_int(
 		settings, kUIPropSDITransport4K.id,
 		static_cast<long long>(SDITransport4K::TwoSampleInterleave));
+	obs_data_set_default_int(settings, kUIPropAudioCaptureChannels.id,
+				 kDefaultAudioCaptureChannels);
 	obs_data_set_default_bool(settings, kUIPropDeactivateWhenNotShowing.id,
 				  false);
 }

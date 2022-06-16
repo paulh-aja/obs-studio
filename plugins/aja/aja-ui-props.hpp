@@ -108,3 +108,9 @@ static const UIProperty kUIPropMultiViewAudioSource = {
 	"Multi View Audio Source",
 	"",
 };
+
+static const UIProperty kUIPropAudioCaptureChannels = {
+	"ui_prop_capture_audio_channels",
+	"Audio Channels",
+	"",
+};
