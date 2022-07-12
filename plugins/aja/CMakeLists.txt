@@ -22,6 +22,7 @@ add_library(OBS::aja ALIAS aja)
 target_sources(
   aja
   PRIVATE main.cpp
+          moving-average.hpp
           aja-card-manager.cpp
           aja-common.cpp
           aja-common.hpp
@@ -60,6 +61,7 @@ elseif(OS_WINDOWS)
 
   target_link_libraries(aja PRIVATE ws2_32.lib setupapi.lib Winmm.lib
                                     netapi32.lib Shlwapi.lib)
+  target_compile_definitions(aja PRIVATE -DNOMINMAX)
 endif()
 
 set_target_properties(aja PROPERTIES FOLDER "plugins/aja" PREFIX "")

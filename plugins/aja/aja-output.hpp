@@ -1,16 +1,19 @@
 #pragma once
 
 #include "aja-props.hpp"
+#include "moving-average.hpp"
 
 #include <ajantv2/includes/ntv2testpatterngen.h>
-
-#include <ajabase/common/types.h>
+#include <ajabase/common/timer.h>
 #include <ajabase/system/thread.h>
+#include <ajabase/common/types.h>
 
 // #define AJA_WRITE_DEBUG_WAV
 #ifdef AJA_WRITE_DEBUG_WAV
 #include <ajabase/common/wavewriter.h>
 #endif
+
+#define AJA_OUTPUT_AVERAGES
 
 #include <deque>
 #include <memory>
@@ -85,38 +88,50 @@ public:
 	UWord mDeviceIndex;
 	NTV2DeviceID mDeviceID;
 
+	uint32_t mFrameRateNum;
+	uint32_t mFrameRateDen;
+	double mFrameTime;
+
+	// Card audio config & state
 	uint32_t mAudioPlayCursor;
 	uint32_t mAudioWriteCursor;
 	uint32_t mAudioWrapAddress;
-	uint32_t mAudioRate;
+	uint32_t mAudioSampleRate;
 
+	// Card video frame buffers config & state
+	uint32_t mNumCardFrames;
+	uint32_t mCardFrameBegin;
+	uint32_t mCardFrameEnd;
+	uint32_t mCardFrameWrite;
+	uint32_t mCardFramePlay;
+	uint32_t mCardFrameNext;
+
+	// Stats
+	uint64_t mVideoReceivedFrames;
+	uint64_t mAudioReceivedSamples;
 	uint64_t mAudioQueueSamples;
 	uint64_t mAudioWriteSamples;
 	uint64_t mAudioPlaySamples;
-
-	uint32_t mNumCardFrames;
-	uint32_t mFirstCardFrame;
-	uint32_t mLastCardFrame;
-	uint32_t mWriteCardFrame;
-	uint32_t mPlayCardFrame;
-	uint32_t mPlayCardNext;
-	uint32_t mFrameRateNum;
-	uint32_t mFrameRateDen;
-
 	uint64_t mVideoQueueFrames;
 	uint64_t mVideoWriteFrames;
 	uint64_t mVideoPlayFrames;
-
 	uint64_t mFirstVideoTS;
-	uint64_t mFirstAudioTS;
 	uint64_t mLastVideoTS;
+	uint64_t mFirstAudioTS;
 	uint64_t mLastAudioTS;
 
+#ifdef AJA_OUTPUT_AVERAGES
+	aja::IntervalAverage<uint32_t> mVideoPlayedPerSec;
+	aja::IntervalAverage<uint32_t> mVideoWritePerSec;
+#endif
+
+	// Card A/V sync
 	int64_t mVideoDelay;
 	int64_t mAudioDelay;
 	int64_t mAudioVideoSync;
 	int64_t mAudioAdjust;
 	int64_t mLastStatTime;
+
 #ifdef AJA_WRITE_DEBUG_WAV
 	AJAWavWriter *mWaveWriter;
 #endif
@@ -127,29 +142,22 @@ private:
 					  NTV2VideoFormat vf,
 					  NTV2PixelFormat pf);
 
-	uint32_t get_frame_count();
+	uint32_t get_card_play_count();
 
 	void dma_audio_samples(NTV2AudioSystem audioSys, uint32_t *data,
 			       size_t size);
 
 	CNTV2Card *mCard;
-
 	OutputProps mOutputProps;
-
 	NTV2TestPatternBuffer mTestPattern;
-
 	bool mIsRunning;
 	bool mAudioStarted;
-
 	AJAThread mRunThread;
 	mutable std::mutex mVideoLock;
 	mutable std::mutex mAudioLock;
 	mutable std::mutex mRunThreadLock;
-
 	std::unique_ptr<VideoQueue> mVideoQueue;
 	std::unique_ptr<AudioQueue> mAudioQueue;
-
 	obs_output_t *mOBSOutput;
-
 	NTV2XptConnections mCrosspoints;
 };
