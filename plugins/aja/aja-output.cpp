@@ -18,9 +18,11 @@
 #include <stdlib.h>
 
 // Log AJA Output video/audio delay and av-sync?
-// #define AJA_OUTPUT_STATS
+#define AJA_OUTPUT_LOG_STATS
 // Include AJA Output thread in OBS profiling?
 // #define AJA_OUTPUT_PROFILE
+// Log queue sizes?
+// #define AJA_OUTPUT_LOG_QUEUES
 
 static constexpr uint32_t kNumCardFrames = 3;
 static constexpr int64_t kDefaultStatPeriod = 200000000;
@@ -107,7 +109,7 @@ AJAOutput::AJAOutput(CNTV2Card *card, const std::string &cardID,
 	  mCardFrameEnd{0},
 	  mCardFrameWrite{0},
 	  mCardFramePlay{0},
-	  mCardFrameNext{0},
+	  mCardFrameFree{0},
 	  mVideoReceivedFrames{0},
 	  mAudioReceivedSamples{0},
 	  mAudioQueueSamples{0},
@@ -120,6 +122,8 @@ AJAOutput::AJAOutput(CNTV2Card *card, const std::string &cardID,
 	  mLastVideoTS{0},
 	  mFirstAudioTS{0},
 	  mLastAudioTS{0},
+	  mFirstVideoQTS{0},
+	  mLastVideoQTS{0},
 #ifdef AJA_OUTPUT_AVERAGES
 	  mVideoPlayedPerSec{},
 	  mVideoWritePerSec{},
@@ -259,6 +263,47 @@ void AJAOutput::GenerateTestPattern(NTV2VideoFormat vf, NTV2PixelFormat pf,
 		static_cast<ULWord>(mTestPattern.size()));
 }
 
+bool AJAOutput::NextCardWriteFrame(uint32_t &frame)
+{
+	bool foundNext = false;
+	uint32_t writeNext = mCardFrameWrite + 1;
+	if (writeNext > mCardFrameEnd)
+		writeNext = mCardFrameBegin;
+	if (writeNext != mCardFramePlay) {
+		mCardFrameWrite = writeNext;
+		foundNext = true;
+	}
+	frame = mCardFrameWrite;
+	while (mCardFrameFree != mCardFrameWrite &&
+	       mCardFrameFree != mCardFramePlay) {
+		if (mCardFrameFree++ > mCardFrameEnd)
+			mCardFrameFree = mCardFrameBegin;
+	}
+	return foundNext;
+}
+
+bool AJAOutput::NextCardPlayFrame(uint32_t &frame)
+{
+	bool foundNext = false;
+	mCardFramePlay = mCardFrameFree;
+	if (mCardFramePlay != mCardFrameWrite) {
+		uint32_t playNext = mCardFramePlay + 1;
+		if (playNext > mCardFrameEnd)
+			playNext = mCardFrameBegin;
+		if (playNext != mCardFrameWrite) {
+			mCardFrameFree = playNext;
+			foundNext = true;
+			frame = mCardFramePlay;
+		}
+	}
+	while (mCardFrameFree != mCardFrameWrite &&
+	       mCardFrameFree != mCardFramePlay) {
+		if (mCardFrameFree++ > mCardFrameEnd)
+			mCardFrameFree = mCardFrameBegin;
+	}
+	return foundNext;
+}
+
 void AJAOutput::QueueVideoFrame(struct video_data *frame, size_t size)
 {
 	const std::lock_guard<std::mutex> lock(mVideoLock);
@@ -278,6 +323,9 @@ void AJAOutput::QueueVideoFrame(struct video_data *frame, size_t size)
 
 	mVideoQueue->push_back(vf);
 	mVideoQueueFrames++;
+#ifdef AJA_OUTPUT_LOG_QUEUES
+	blog(LOG_DEBUG, "vq: %zu", mVideoQueue->size());
+#endif
 }
 
 void AJAOutput::QueueAudioFrames(struct audio_data *frames, size_t size)
@@ -301,8 +349,9 @@ void AJAOutput::QueueAudioFrames(struct audio_data *frames, size_t size)
 	mAudioQueueSamples += frames->frames;
 	assert(frames->frames ==
 	       (size / (kDefaultAudioChannels * kDefaultAudioSampleSize)));
-	// mAudioQueueSamples +=
-	// 	size / (kDefaultAudioChannels * kDefaultAudioSampleSize);
+#ifdef AJA_OUTPUT_LOG_QUEUES
+	blog(LOG_DEBUG, "aq: %zu", mAudioQueue->size());
+#endif
 }
 
 void AJAOutput::ClearVideoQueue()
@@ -459,32 +508,49 @@ void AJAOutput::DMAVideoFromQueue()
 	auto &vf = mVideoQueue->front();
 	auto data = vf.frame.data[0];
 
-	// find the next buffer
-	uint32_t writeCardFrame = mCardFrameWrite + 1;
-	if (writeCardFrame > mCardFrameEnd)
-		writeCardFrame = mCardFrameBegin;
-
-	// use the next buffer if available
-	if (writeCardFrame != mCardFramePlay)
-		mCardFrameWrite = writeCardFrame;
-
-	auto result = mCard->DMAWriteFrame(mCardFrameWrite,
-					   reinterpret_cast<ULWord *>(data),
-					   (ULWord)vf.size);
-	if (!result) {
+#ifdef AJA_OUTPUT_LOG_STATS
+	uint64_t videoTS = vf.frame.timestamp;
+	if (!mFirstVideoQTS)
+		mFirstVideoQTS = videoTS;
+	double frameDeltaMS = nsec_to_msec(videoTS - mLastVideoQTS);
+	mLastVideoQTS = videoTS;
+	if (frameDeltaMS > mFrameTime) {
 		blog(LOG_DEBUG,
-		     "AJAOutput::DMAVideoFromQueue: Failed to write video frame: %lld",
-		     mVideoWriteFrames);
-	} else {
-		mVideoWriteFrames++;
-#ifdef AJA_OUTPUT_AVERAGES
-		mVideoWritePerSec.Tick();
-		if (mVideoWritePerSec.EndInterval()) {
-			blog(LOG_DEBUG, "vid dma/sec: %f",
-			     mVideoWritePerSec.MovingAverage());
-			mVideoWritePerSec.BeginInterval();
-		}
+		     "AJAOutput::DMAVideoFromQueue: now %lu - last %lu = %.2fms",
+		     videoTS, mLastVideoQTS, frameDeltaMS);
+	}
 #endif
+
+	// find the next buffer
+	// uint32_t writeCardFrame = mCardFrameWrite + 1;
+	// if (writeCardFrame > mCardFrameEnd)
+	// 	writeCardFrame = mCardFrameBegin;
+	// // use the next buffer if available
+	// if (writeCardFrame != mCardFramePlay)
+	// 	mCardFrameWrite = writeCardFrame;
+
+	uint32_t writeNext = 0;
+	if (NextCardWriteFrame(writeNext)) {
+		auto result = mCard->DMAWriteFrame(
+			writeNext, reinterpret_cast<ULWord *>(data),
+			(ULWord)vf.size);
+		if (!result) {
+			blog(LOG_DEBUG,
+			     "AJAOutput::DMAVideoFromQueue: Failed to write video frame: %lld",
+			     mVideoWriteFrames);
+		} else {
+			mVideoWriteFrames++;
+#ifdef AJA_OUTPUT_AVERAGES
+			mVideoWritePerSec.Tick();
+			if (mVideoWritePerSec.EndInterval()) {
+				blog(LOG_DEBUG, "vid dma/sec: %f",
+				     mVideoWritePerSec.MovingAverage());
+				mVideoWritePerSec.BeginInterval();
+			}
+#endif
+		}
+	} else {
+		// blog(LOG_DEBUG, "write stale %d!", writeNext);
 	}
 
 	free_video_frame(&vf.frame);
@@ -510,11 +576,15 @@ void AJAOutput::calculate_card_frame_indices(uint32_t numFrames,
 		// Reserve N framebuffers in card DRAM.
 		mNumCardFrames = numFrames;
 		mCardFrameWrite = mCardFrameBegin;
+		mCardFramePlay = mCardFrameWrite + 1;
+		mCardFrameFree = mCardFramePlay;
 		mCardFrameEnd = lastFrame;
 	} else {
 		// otherwise just grab 2 frames to ping-pong between
 		mNumCardFrames = 2;
 		mCardFrameWrite = channelIndex * 2;
+		mCardFramePlay = mCardFrameWrite + 1;
+		mCardFrameFree = mCardFramePlay;
 		mCardFrameEnd = mCardFrameWrite + (mNumCardFrames - 1);
 	}
 	blog(LOG_DEBUG, "AJA Output using %d card frame indices (%d-%d)",
@@ -697,30 +767,43 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 		uint32_t playedFrameCount = ajaOutput->get_card_play_count();
 		if (playedFrameCount > videoPlayLast) {
 			videoPlayLast = playedFrameCount;
-			ajaOutput->mCardFramePlay = ajaOutput->mCardFrameNext;
-			if (ajaOutput->mCardFramePlay !=
-			    ajaOutput->mCardFrameWrite) {
-				uint32_t playCardNext =
-					ajaOutput->mCardFramePlay + 1;
-				if (playCardNext > ajaOutput->mCardFrameEnd)
-					playCardNext =
-						ajaOutput->mCardFrameBegin;
-
-				if (playCardNext !=
-				    ajaOutput->mCardFrameWrite) {
-					ajaOutput->mCardFrameNext =
-						playCardNext;
-					// Increment the play frame
-					ajaOutput->mCard->SetOutputFrame(
-						ajaOutput->mOutputProps
-							.Channel(),
-						ajaOutput->mCardFrameNext);
-				}
+			uint32_t playNext = 0;
+			if (ajaOutput->NextCardPlayFrame(playNext)) {
+				ajaOutput->mCard->SetOutputFrame(
+					ajaOutput->mOutputProps.Channel(),
+					playNext);
 				ajaOutput->mVideoPlayFrames++;
 #ifdef AJA_OUTPUT_AVERAGES
 				ajaOutput->mVideoPlayedPerSec.Tick();
 #endif
+			} else {
+				blog(LOG_DEBUG, "play stale %d!",
+				     playNext);
 			}
+			// 			ajaOutput->mCardFramePlay = ajaOutput->mCardFrameFree;
+			// 			if (ajaOutput->mCardFramePlay !=
+			// 			    ajaOutput->mCardFrameWrite) {
+			// 				uint32_t playCardNext =
+			// 					ajaOutput->mCardFramePlay + 1;
+			// 				if (playCardNext > ajaOutput->mCardFrameEnd)
+			// 					playCardNext =
+			// 						ajaOutput->mCardFrameBegin;
+
+			// 				if (playCardNext !=
+			// 				    ajaOutput->mCardFrameWrite) {
+			// 					ajaOutput->mCardFrameFree =
+			// 						playCardNext;
+			// 					// Increment the play frame
+			// 					ajaOutput->mCard->SetOutputFrame(
+			// 						ajaOutput->mOutputProps
+			// 							.Channel(),
+			// 						ajaOutput->mCardFrameFree);
+			// 				}
+			// 				ajaOutput->mVideoPlayFrames++;
+			// #ifdef AJA_OUTPUT_AVERAGES
+			// 				ajaOutput->mVideoPlayedPerSec.Tick();
+			// #endif
+			// 			}
 		}
 
 #ifdef AJA_OUTPUT_AVERAGES
@@ -790,18 +873,10 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 				videoSyncSum = 0;
 			}
 
-#ifdef AJA_OUTPUT_STATS
-			blog(LOG_DEBUG,
-			     "AJAOutput::OutputThread: vd %li  ad %li  avs %li",
-			     ajaOutput->mVideoDelay, ajaOutput->mAudioDelay,
-			     ajaOutput->mAudioVideoSync);
+#ifdef AJA_OUTPUT_LOG_STATS
+			ajaOutput->LogOutputStats(kStatsLogCardFrames);
 #endif
 		}
-#ifdef AJA_OUTPUT_STATS
-		blog(LOG_DEBUG, "count %d play %d next %d write %d",
-		     playedFrameCount, ajaOutput->mCardFramePlay,
-		     ajaOutput->mCardFrameNext, ajaOutput->mCardFrameWrite);
-#endif
 		os_sleep_ms(1);
 #ifdef AJA_OUTPUT_PROFILE
 		profile_end(aja_output_thread_name);
@@ -814,6 +889,22 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 	blog(LOG_INFO,
 	     "AJAOutput::OutputThread: Thread stopped. Played %lld video frames",
 	     ajaOutput->mVideoQueueFrames);
+}
+
+void AJAOutput::LogOutputStats(StatsLogFlags flags)
+{
+	if (flags & kStatsLogCardFrames) {
+		blog(LOG_DEBUG,
+		     "card frames (%d-%d) dma: %d, on-air: %d next: %d",
+		     mCardFrameBegin, mCardFrameEnd, mCardFrameWrite,
+		     mCardFramePlay, mCardFrameFree);
+	}
+	if (flags & kStatsLogAVSync) {
+		blog(LOG_DEBUG,
+		     "[stat: %li] avsync: %li vdelay: %li adelay: %li (adjust: %li)",
+		     mLastStatTime, mAudioVideoSync, mVideoDelay, mAudioDelay,
+		     mAudioAdjust);
+	}
 }
 
 void populate_output_device_list(obs_property_t *list)
@@ -1264,7 +1355,7 @@ static void aja_output_raw_video(void *data, struct video_data *frame)
 	auto ajaOutput = (AJAOutput *)data;
 	if (!ajaOutput)
 		return;
-#ifdef AJA_OUTPUT_STATS
+#ifdef AJA_OUTPUT_LOG_STATS
 	uint64_t videoTS = frame->timestamp;
 	if (!ajaOutput->mFirstVideoTS)
 		ajaOutput->mFirstVideoTS = videoTS;
@@ -1287,11 +1378,10 @@ static void aja_output_raw_audio(void *data, struct audio_data *frames)
 	auto ajaOutput = (AJAOutput *)data;
 	if (!ajaOutput)
 		return;
-#ifdef AJA_OUTPUT_STATS
+#ifdef AJA_OUTPUT_LOG_STATS
 	if (!ajaOutput->mFirstAudioTS)
 		ajaOutput->mFirstAudioTS = frames->timestamp;
 	ajaOutput->mLastAudioTS = frames->timestamp;
-	// blog(LOG_DEBUG, "aja_output_raw_audio: %lu", ajaOutput->mLastAudioTS);
 #endif
 	auto outputProps = ajaOutput->GetOutputProps();
 	auto audioSize = outputProps.AudioSize();

@@ -44,6 +44,10 @@ public:
 		kAudioQueueMaxSize =
 			96, // ~(48000 / 1024 samples per audio_frame) * 2sec
 	};
+	enum StatsLogFlags {
+		kStatsLogCardFrames = (1 << 0),
+		kStatsLogAVSync = (1 << 1),
+	};
 
 	AJAOutput(CNTV2Card *card, const std::string &cardID,
 		  const std::string &outputID, UWord deviceIndex,
@@ -67,6 +71,9 @@ public:
 	void GenerateTestPattern(NTV2VideoFormat vf, NTV2PixelFormat pf,
 				 NTV2TestPatternSelect pattern);
 
+	bool NextCardWriteFrame(uint32_t &frame);
+	bool NextCardPlayFrame(uint32_t &frame);
+
 	void QueueVideoFrame(struct video_data *frame, size_t size);
 	void QueueAudioFrames(struct audio_data *frames, size_t size);
 	void ClearVideoQueue();
@@ -82,6 +89,8 @@ public:
 	void StopThread();
 	bool ThreadRunning();
 	static void OutputThread(AJAThread *thread, void *ctx);
+
+	void LogOutputStats(StatsLogFlags flags);
 
 	std::string mCardID;
 	std::string mOutputID;
@@ -104,7 +113,7 @@ public:
 	uint32_t mCardFrameEnd;
 	uint32_t mCardFrameWrite;
 	uint32_t mCardFramePlay;
-	uint32_t mCardFrameNext;
+	uint32_t mCardFrameFree;
 
 	// Stats
 	uint64_t mVideoReceivedFrames;
@@ -119,6 +128,8 @@ public:
 	uint64_t mLastVideoTS;
 	uint64_t mFirstAudioTS;
 	uint64_t mLastAudioTS;
+	uint64_t mFirstVideoQTS;
+	uint64_t mLastVideoQTS;
 
 #ifdef AJA_OUTPUT_AVERAGES
 	aja::IntervalAverage<uint32_t> mVideoPlayedPerSec;
