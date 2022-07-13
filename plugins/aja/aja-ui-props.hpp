@@ -108,3 +108,9 @@ static const UIProperty kUIPropMultiViewAudioSource = {
 	"Multi View Audio Source",
 	"",
 };
+
+static const UIProperty kUIPropCardVideoBuffers = {
+	"up_prop_card_video_buffers",
+	"Hardware Buffers",
+	"Number of frame buffers to use on the AJA card",
+};

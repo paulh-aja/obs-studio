@@ -18,7 +18,7 @@
 #include <stdlib.h>
 
 // Log AJA Output video/audio delay and av-sync?
-#define AJA_OUTPUT_LOG_STATS
+// #define AJA_OUTPUT_LOG_STATS
 // Include AJA Output thread in OBS profiling?
 // #define AJA_OUTPUT_PROFILE
 // Log queue sizes?
@@ -109,7 +109,7 @@ AJAOutput::AJAOutput(CNTV2Card *card, const std::string &cardID,
 	  mCardFrameEnd{0},
 	  mCardFrameWrite{0},
 	  mCardFramePlay{0},
-	  mCardFrameFree{0},
+	  mCardFrameLast{0},
 	  mVideoReceivedFrames{0},
 	  mAudioReceivedSamples{0},
 	  mAudioQueueSamples{0},
@@ -162,7 +162,7 @@ CNTV2Card *AJAOutput::GetCard()
 	return mCard;
 }
 
-void AJAOutput::Initialize(const OutputProps &props)
+void AJAOutput::Initialize(const OutputProps &props, uint32_t cardFrames)
 {
 	const auto &audioSystem = props.AudioSystem();
 
@@ -171,7 +171,7 @@ void AJAOutput::Initialize(const OutputProps &props)
 
 	// Specify the frame indices for the "on-air" frames on the card.
 	// Starts at frame index corresponding to the output Channel * numFrames
-	calculate_card_frame_indices(kNumCardFrames, mCard->GetDeviceID(),
+	calculate_card_frame_indices(cardFrames, mCard->GetDeviceID(),
 				     props.Channel(), props.videoFormat,
 				     props.pixelFormat);
 
@@ -272,34 +272,27 @@ bool AJAOutput::NextCardWriteFrame(uint32_t &frame)
 	if (writeNext != mCardFramePlay) {
 		mCardFrameWrite = writeNext;
 		foundNext = true;
+		// blog(LOG_DEBUG, "write: %d", mCardFrameWrite);
 	}
 	frame = mCardFrameWrite;
-	while (mCardFrameFree != mCardFrameWrite &&
-	       mCardFrameFree != mCardFramePlay) {
-		if (mCardFrameFree++ > mCardFrameEnd)
-			mCardFrameFree = mCardFrameBegin;
-	}
 	return foundNext;
 }
+
 
 bool AJAOutput::NextCardPlayFrame(uint32_t &frame)
 {
 	bool foundNext = false;
-	mCardFramePlay = mCardFrameFree;
+	mCardFramePlay = mCardFrameLast;
 	if (mCardFramePlay != mCardFrameWrite) {
 		uint32_t playNext = mCardFramePlay + 1;
 		if (playNext > mCardFrameEnd)
 			playNext = mCardFrameBegin;
 		if (playNext != mCardFrameWrite) {
-			mCardFrameFree = playNext;
+			mCardFrameLast = playNext;
 			foundNext = true;
 			frame = mCardFramePlay;
+			// blog(LOG_DEBUG, "play: %d next: %d", mCardFramePlay, mCardFrameLast);
 		}
-	}
-	while (mCardFrameFree != mCardFrameWrite &&
-	       mCardFrameFree != mCardFramePlay) {
-		if (mCardFrameFree++ > mCardFrameEnd)
-			mCardFrameFree = mCardFrameBegin;
 	}
 	return foundNext;
 }
@@ -521,14 +514,6 @@ void AJAOutput::DMAVideoFromQueue()
 	}
 #endif
 
-	// find the next buffer
-	// uint32_t writeCardFrame = mCardFrameWrite + 1;
-	// if (writeCardFrame > mCardFrameEnd)
-	// 	writeCardFrame = mCardFrameBegin;
-	// // use the next buffer if available
-	// if (writeCardFrame != mCardFramePlay)
-	// 	mCardFrameWrite = writeCardFrame;
-
 	uint32_t writeNext = 0;
 	if (NextCardWriteFrame(writeNext)) {
 		auto result = mCard->DMAWriteFrame(
@@ -577,30 +562,30 @@ void AJAOutput::calculate_card_frame_indices(uint32_t numFrames,
 		mNumCardFrames = numFrames;
 		mCardFrameWrite = mCardFrameBegin;
 		mCardFramePlay = mCardFrameWrite + 1;
-		mCardFrameFree = mCardFramePlay;
 		mCardFrameEnd = lastFrame;
+		mCardFrameLast = mCardFrameEnd;
 	} else {
 		// otherwise just grab 2 frames to ping-pong between
 		mNumCardFrames = 2;
 		mCardFrameWrite = channelIndex * 2;
 		mCardFramePlay = mCardFrameWrite + 1;
-		mCardFrameFree = mCardFramePlay;
+		mCardFrameLast = mCardFramePlay;
 		mCardFrameEnd = mCardFrameWrite + (mNumCardFrames - 1);
 	}
 	blog(LOG_DEBUG, "AJA Output using %d card frame indices (%d-%d)",
 	     mNumCardFrames, mCardFrameBegin, mCardFrameEnd);
 }
 
-uint32_t AJAOutput::get_card_play_count()
+uint32_t AJAOutput::video_interrupt_count()
 {
-	uint32_t playedFrameCount = 0;
+	uint32_t videoPlayCount = 0;
 	NTV2Channel channel = mOutputProps.Channel();
 	INTERRUPT_ENUMS interrupt = NTV2ChannelToOutputInterrupt(channel);
 	bool isProgressiveTransport = NTV2_IS_PROGRESSIVE_STANDARD(
 		::GetNTV2StandardFromVideoFormat(mOutputProps.videoFormat));
 
 	if (isProgressiveTransport) {
-		mCard->GetInterruptCount(interrupt, playedFrameCount);
+		mCard->GetInterruptCount(interrupt, videoPlayCount);
 	} else {
 		uint32_t intCount;
 		uint32_t nextCount;
@@ -614,10 +599,10 @@ uint32_t AJAOutput::get_card_play_count()
 		}
 		if (fieldID == NTV2_FIELD1)
 			intCount--;
-		playedFrameCount = intCount / 2;
+		videoPlayCount = intCount / 2;
 	}
 
-	return playedFrameCount;
+	return videoPlayCount;
 }
 
 // Perform DMA of audio samples to AJA card while taking into account wrapping around the
@@ -731,7 +716,7 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 
 	const auto &props = ajaOutput->GetOutputProps();
 	const auto &audioSystem = props.AudioSystem();
-	uint64_t videoPlayLast = ajaOutput->get_card_play_count();
+	uint64_t videoPlayLast = ajaOutput->video_interrupt_count();
 	uint32_t audioSyncCount = 0;
 	uint32_t videoSyncCount = 0;
 	uint32_t kMaxAVSyncEvents = 5;
@@ -764,10 +749,10 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 		}
 
 		// Check if a vsync occurred
-		uint32_t playedFrameCount = ajaOutput->get_card_play_count();
-		if (playedFrameCount > videoPlayLast) {
-			videoPlayLast = playedFrameCount;
-			uint32_t playNext = 0;
+		uint32_t playCount = ajaOutput->video_interrupt_count();
+		if (playCount > videoPlayLast) {
+			videoPlayLast = playCount;
+			uint32_t playNext;
 			if (ajaOutput->NextCardPlayFrame(playNext)) {
 				ajaOutput->mCard->SetOutputFrame(
 					ajaOutput->mOutputProps.Channel(),
@@ -777,33 +762,9 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 				ajaOutput->mVideoPlayedPerSec.Tick();
 #endif
 			} else {
-				blog(LOG_DEBUG, "play stale %d!",
-				     playNext);
+				// blog(LOG_DEBUG, "play stale %d!",
+				//      playNext);
 			}
-			// 			ajaOutput->mCardFramePlay = ajaOutput->mCardFrameFree;
-			// 			if (ajaOutput->mCardFramePlay !=
-			// 			    ajaOutput->mCardFrameWrite) {
-			// 				uint32_t playCardNext =
-			// 					ajaOutput->mCardFramePlay + 1;
-			// 				if (playCardNext > ajaOutput->mCardFrameEnd)
-			// 					playCardNext =
-			// 						ajaOutput->mCardFrameBegin;
-
-			// 				if (playCardNext !=
-			// 				    ajaOutput->mCardFrameWrite) {
-			// 					ajaOutput->mCardFrameFree =
-			// 						playCardNext;
-			// 					// Increment the play frame
-			// 					ajaOutput->mCard->SetOutputFrame(
-			// 						ajaOutput->mOutputProps
-			// 							.Channel(),
-			// 						ajaOutput->mCardFrameFree);
-			// 				}
-			// 				ajaOutput->mVideoPlayFrames++;
-			// #ifdef AJA_OUTPUT_AVERAGES
-			// 				ajaOutput->mVideoPlayedPerSec.Tick();
-			// #endif
-			// 			}
 		}
 
 #ifdef AJA_OUTPUT_AVERAGES
@@ -897,7 +858,7 @@ void AJAOutput::LogOutputStats(StatsLogFlags flags)
 		blog(LOG_DEBUG,
 		     "card frames (%d-%d) dma: %d, on-air: %d next: %d",
 		     mCardFrameBegin, mCardFrameEnd, mCardFrameWrite,
-		     mCardFramePlay, mCardFrameFree);
+		     mCardFramePlay, mCardFrameLast);
 	}
 	if (flags & kStatsLogAVSync) {
 		blog(LOG_DEBUG,
@@ -1136,6 +1097,7 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 	outputProps.audioNumChannels = kDefaultAudioChannels;
 	outputProps.audioSampleSize = kDefaultAudioSampleSize;
 	outputProps.audioSampleRate = kDefaultAudioSampleRate;
+	uint32_t numCardFrames = obs_data_get_int(settings, kUIPropCardVideoBuffers.id);
 
 	if (outputProps.ioSelect == IOSelection::Invalid) {
 		blog(LOG_DEBUG,
@@ -1173,7 +1135,7 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 	auto ajaOutput = new AJAOutput(card, cardID, outputID,
 				       (UWord)cardEntry->GetCardIndex(),
 				       deviceID);
-	ajaOutput->Initialize(outputProps);
+	ajaOutput->Initialize(outputProps, numCardFrames);
 	ajaOutput->ClearVideoQueue();
 	ajaOutput->ClearAudioQueue();
 	ajaOutput->SetOBSOutput(output);
@@ -1417,6 +1379,8 @@ static obs_properties_t *aja_output_get_properties(void *data)
 				OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_properties_add_bool(props, kUIPropAutoStartOutput.id,
 				obs_module_text(kUIPropAutoStartOutput.text));
+	obs_properties_add_int(props, kUIPropCardVideoBuffers.id,
+				obs_module_text(kUIPropCardVideoBuffers.text), kNumCardFrames, 24, 1);
 
 	obs_property_set_modified_callback(vid_fmt_list,
 					   aja_video_format_changed);
@@ -1448,6 +1412,9 @@ static void aja_output_defaults(obs_data_t *settings)
 	obs_data_set_default_int(
 		settings, kUIPropSDITransport4K.id,
 		static_cast<long long>(kDefaultAJASDITransport4K));
+	obs_data_set_default_int(
+		settings, kUIPropCardVideoBuffers.id,
+		static_cast<long long>(kNumCardFrames));
 }
 
 struct obs_output_info create_aja_output_info()

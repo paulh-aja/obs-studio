@@ -57,7 +57,7 @@ public:
 
 	CNTV2Card *GetCard();
 
-	void Initialize(const OutputProps &props);
+	void Initialize(const OutputProps &props, uint32_t cardFrames);
 
 	void SetOBSOutput(obs_output_t *output);
 	obs_output_t *GetOBSOutput();
@@ -113,7 +113,7 @@ public:
 	uint32_t mCardFrameEnd;
 	uint32_t mCardFrameWrite;
 	uint32_t mCardFramePlay;
-	uint32_t mCardFrameFree;
+	uint32_t mCardFrameLast;
 
 	// Stats
 	uint64_t mVideoReceivedFrames;
@@ -153,7 +153,7 @@ private:
 					  NTV2VideoFormat vf,
 					  NTV2PixelFormat pf);
 
-	uint32_t get_card_play_count();
+	uint32_t video_interrupt_count();
 
 	void dma_audio_samples(NTV2AudioSystem audioSys, uint32_t *data,
 			       size_t size);
