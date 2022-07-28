@@ -27,6 +27,7 @@ target_sources(
           aja-common.hpp
           aja-output.cpp
           aja-enums.hpp
+          aja-moving-average.hpp
           aja-output.hpp
           aja-presets.cpp
           aja-presets.hpp
@@ -62,6 +63,7 @@ elseif(OS_WINDOWS)
   target_link_libraries(aja PRIVATE ws2_32.lib setupapi.lib Winmm.lib
                                     netapi32.lib Shlwapi.lib)
   target_link_options(aja PRIVATE "LINKER:/IGNORE:4099")
+  target_compile_definitions(aja PRIVATE -DNOMINMAX)
 endif()
 
 set_target_properties(aja PROPERTIES FOLDER "plugins/aja" PREFIX "")

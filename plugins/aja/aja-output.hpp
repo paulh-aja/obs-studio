@@ -1,6 +1,7 @@
 #pragma once
 
 #include "aja-props.hpp"
+#include "aja-moving-average.hpp"
 
 #include <ajantv2/includes/ntv2testpatterngen.h>
 
@@ -50,8 +51,10 @@ public:
 
 	CNTV2Card *GetCard();
 
-	void Initialize(const OutputProps &props);
-
+	bool Initialize(const OutputProps &props);
+	bool ConfigureAutoCirculate(const OutputProps& props, UWord startFrame, UWord endFrame);
+	bool IsAutoCirculateReady(const AUTOCIRCULATE_STATUS& status);
+	bool IsAutoCirculateBufferReady(const AUTOCIRCULATE_STATUS& status);
 	void SetOBSOutput(obs_output_t *output);
 	obs_output_t *GetOBSOutput();
 
@@ -70,11 +73,11 @@ public:
 	void ClearAudioQueue();
 	size_t VideoQueueSize();
 	size_t AudioQueueSize();
-
+	bool AlignAudio(const struct audio_data *frame, struct audio_data *output);
 	bool HaveEnoughAudio(size_t needAudioSize);
 	void DMAAudioFromQueue(NTV2AudioSystem audioSys);
 	void DMAVideoFromQueue();
-
+	void DoAutoCirculateTransfer();
 	void CreateThread(bool enable = false);
 	void StopThread();
 	bool ThreadRunning();
@@ -117,6 +120,14 @@ public:
 	int64_t mAudioVideoSync;
 	int64_t mAudioAdjust;
 	int64_t mLastStatTime;
+
+	NTV2_POINTER mHostVideoBuffer;
+	NTV2_POINTER mHostAudioBuffer;
+
+	uint64_t mLastTime { 0 };
+	aja::IntervalAverage<uint32_t> mAudioQueuedSamplesSec { AJATimerPrecisionMilliseconds, 1000, 192000 };
+	aja::IntervalAverage<uint32_t> mAudioQueuedBytesSec { AJATimerPrecisionMilliseconds, 1000, 192000 };
+	aja::IntervalAverage<uint32_t> mAudioWriteBytesSec { AJATimerPrecisionMilliseconds, 1000, 192000 };
 #ifdef AJA_WRITE_DEBUG_WAV
 	AJAWavWriter *mWaveWriter;
 #endif
