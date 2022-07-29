@@ -62,6 +62,7 @@ _configure_obs() {
         -DCMAKE_BUILD_TYPE=${BUILD_CONFIG} \
         -DLINUX_PORTABLE=${PORTABLE_BUILD:-OFF} \
         -DAJASDKPath="${DEPS_BUILD_DIR}" \
+        -DENABLE_SCRIPTING=OFF \
         ${BROWSER_OPTION} \
         ${PIPEWIRE_OPTION} \
         ${YOUTUBE_OPTIONS} \
