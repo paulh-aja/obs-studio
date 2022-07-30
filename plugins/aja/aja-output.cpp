@@ -189,7 +189,7 @@ bool AJAOutput::ConfigureAutoCirculate(const OutputProps& props, UWord startFram
 		if (!IsAutoCirculateReady(acStatus))
 			mCard->AutoCirculateStop(channel);
 		ULWord flags = 0;
-		if (NTV2DeviceCanDoCustomAnc(mCard->GetDeviceID()));
+		if (NTV2DeviceCanDoCustomAnc(mCard->GetDeviceID()))
 			flags |= AUTOCIRCULATE_WITH_ANC;
 		return mCard->AutoCirculateInitForOutput(
 			channel,
@@ -514,7 +514,6 @@ void AJAOutput::DMAVideoFromQueue()
 
 void AJAOutput::DoAutoCirculateTransfer()
 {
-	static bool restartInterval = true;
 	if (mLastTime == 0)
 		mLastTime = os_gettime_ns();
 	const auto& props = mOutputProps;
@@ -545,11 +544,11 @@ void AJAOutput::DoAutoCirculateTransfer()
 			const std::lock_guard<std::mutex> lock(mAudioLock);
 			NTV2FrameRate frameRate = GetNTV2FrameRateFromVideoFormat(props.videoFormat);
 			ULWord wantSize = GetAudioSamplesPerFrame(
-				frameRate, props.AudioRate(), mVideoPlayFrames) * 4 * 8;
+				frameRate, props.AudioRate(), (ULWord)mVideoPlayFrames) * 4 * 8;
 			audioSize = wantSize;
 			if (HaveEnoughAudio(wantSize)) {
-				int index = 0;
-				ULWord remain = wantSize;
+				size_t index = 0;
+				size_t remain = (size_t)wantSize;
 				uint8_t* hostAudio = mHostAudioBuffer;
 				while (remain > 0) {
 					AudioFrames &af = mAudioQueue->front();
@@ -574,19 +573,28 @@ void AJAOutput::DoAutoCirculateTransfer()
 			}
 		}
 	}
-	if (!mAudioWriteBytesSec.IsRunning() && restartInterval) {
-		mAudioWriteBytesSec.BeginInterval();
-		restartInterval = false;
-	}
+
 	if (haveVideo && haveAudio) {
-		mAudioWriteBytesSec.AddSample(audioSize);
-		if (mAudioWriteBytesSec.EndInterval()) {
-			blog(LOG_DEBUG, "audio write bytes/sec: %.2f", mAudioWriteBytesSec.MovingAverage());
-			restartInterval = true;
+		mVideoWriteCount++;
+		mAudioWriteCount += (uint32_t)audioSize / 4 / 8;
+		if (mVideoWriteFramesSec.IsRunning()) {
+			if (mVideoWriteFramesSec.EndInterval()) {
+				mVideoWriteFramesSec.AddSample(mVideoWriteCount);
+				blog(LOG_DEBUG, "video write frames/sec: %.2f",
+					mVideoWriteFramesSec.MovingAverage());
+			}
 		}
+		if (mAudioWriteSamplesSec.IsRunning()) {
+			if (mAudioWriteSamplesSec.EndInterval()) {
+				mAudioWriteSamplesSec.AddSample(mAudioWriteCount);
+				blog(LOG_DEBUG, "audio write bytes/sec: %.2f",
+					mAudioWriteSamplesSec.MovingAverage());
+			}
+		}
+
 		AUTOCIRCULATE_TRANSFER acTransfer;
-		acTransfer.SetVideoBuffer(mHostVideoBuffer, videoSize);
-		acTransfer.SetAudioBuffer(mHostAudioBuffer, audioSize);
+		acTransfer.SetVideoBuffer(mHostVideoBuffer, (ULWord)videoSize);
+		acTransfer.SetAudioBuffer(mHostAudioBuffer, (ULWord)audioSize);
 		mCard->AutoCirculateTransfer(props.Framestore(), acTransfer);
 		mVideoPlayFrames++;
 		double frameTimeMs = (double)((os_gettime_ns()) - (double)(mLastTime)) / 1e+6;
@@ -597,7 +605,16 @@ void AJAOutput::DoAutoCirculateTransfer()
     	struct tm *tm = localtime(&t);
     	char timeStr[64];
     	assert(strftime(timeStr, sizeof(timeStr), "%c", tm));
-		blog(LOG_DEBUG, "%s frame %lu (%.2fms)\nvideo ts: %lu\naudio ts: %lu\ndiff: %li (%.2fms)\n", timeStr, mVideoPlayFrames, frameTimeMs, videoTS, audioTS, audioDiff, audioDiffMs);
+		// blog(LOG_DEBUG, "%s frame %lu (%.2fms)\nvideo ts: %lu\naudio ts: %lu\ndiff: %li (%.2fms)\n", timeStr, mVideoPlayFrames, frameTimeMs, videoTS, audioTS, audioDiff, audioDiffMs);
+	}
+
+	if (!mVideoWriteFramesSec.IsRunning()) {
+		mVideoWriteFramesSec.BeginInterval();
+		mVideoWriteCount = 0;
+	}
+	if (!mAudioWriteSamplesSec.IsRunning()) {
+		mAudioWriteSamplesSec.BeginInterval();
+		mAudioWriteCount = 0;
 	}
 }
 
@@ -793,7 +810,8 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 		ajaOutput->DoAutoCirculateTransfer();
 	}
 
-	ajaOutput->mAudioWriteBytesSec.EndInterval();
+	ajaOutput->mVideoWriteFramesSec.EndInterval();
+	ajaOutput->mAudioWriteSamplesSec.EndInterval();
 
 	ajaOutput->mAudioStarted = false;
 
@@ -1068,7 +1086,7 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 	auto ajaOutput = new AJAOutput(card, cardID, outputID,
 				       (UWord)cardEntry->GetCardIndex(),
 				       deviceID);
-	
+
 	if (!ajaOutput->Initialize(outputProps)) {
 		delete ajaOutput;
 		ajaOutput = nullptr;
@@ -1250,7 +1268,7 @@ static void aja_output_stop(void *data, uint64_t ts)
 	card->StopAudioOutput(audioSystem);
 	ajaOutput->ClearConnections();
 
-	ajaOutput->mAudioQueuedBytesSec.EndInterval();
+	ajaOutput->mVideoQueuedFramesSec.EndInterval();
 	ajaOutput->mAudioQueuedSamplesSec.EndInterval();
 	blog(LOG_INFO, "AJA Output stopped.");
 }
@@ -1260,6 +1278,19 @@ static void aja_output_raw_video(void *data, struct video_data *frame)
 	auto ajaOutput = (AJAOutput *)data;
 	if (!ajaOutput)
 		return;
+
+	if (ajaOutput->mVideoQueuedFramesSec.IsRunning()) {
+		ajaOutput->mVideoQCount++;
+		if (ajaOutput->mVideoQueuedFramesSec.EndInterval()) {
+			ajaOutput->mVideoQueuedFramesSec.AddSample(ajaOutput->mVideoQCount);
+			blog(LOG_INFO, "video q frames/sec: %.2f",
+				ajaOutput->mVideoQueuedFramesSec.MovingAverage());
+		}
+	}
+	if (!ajaOutput->mVideoQueuedFramesSec.IsRunning()) {
+		ajaOutput->mVideoQueuedFramesSec.BeginInterval();
+		ajaOutput->mVideoQCount = 0;
+	}
 
 	if (!ajaOutput->mFirstVideoTS)
 		ajaOutput->mFirstVideoTS = frame->timestamp;
@@ -1274,54 +1305,24 @@ static void aja_output_raw_audio(void *data, struct audio_data *frames)
 	auto ajaOutput = (AJAOutput *)data;
 	if (!ajaOutput)
 		return;
-	if (!ajaOutput->mAudioQueuedBytesSec.IsRunning())
-		ajaOutput->mAudioQueuedBytesSec.BeginInterval();
-	if (!ajaOutput->mAudioQueuedSamplesSec.IsRunning())
+
+	if (ajaOutput->mAudioQueuedSamplesSec.IsRunning()) {
+		ajaOutput->mAudioQCount += frames->frames;
+		if (ajaOutput->mAudioQueuedSamplesSec.EndInterval()) {
+			ajaOutput->mAudioQueuedSamplesSec.AddSample(ajaOutput->mAudioQCount);
+			blog(LOG_INFO, "audio q samples/sec: %.2f",
+				ajaOutput->mAudioQueuedSamplesSec.MovingAverage());
+		}
+	}
+	if (!ajaOutput->mAudioQueuedSamplesSec.IsRunning()) {
 		ajaOutput->mAudioQueuedSamplesSec.BeginInterval();
+		ajaOutput->mAudioQCount = 0;
+	}
 
 	auto outputProps = ajaOutput->GetOutputProps();
 	auto audioSize = outputProps.AudioSize();
 	auto audioBytes = static_cast<ULWord>(frames->frames * audioSize);
-
-	ajaOutput->mAudioQueuedBytesSec.AddSample(audioBytes);
-	ajaOutput->mAudioQueuedSamplesSec.AddSample(frames->frames);
-	if (ajaOutput->mAudioQueuedBytesSec.EndInterval()) {
-		blog(LOG_DEBUG, "raw audio bytes/sec: %.2f", ajaOutput->mAudioQueuedBytesSec.MovingAverage());
-		ajaOutput->mAudioQueuedBytesSec.BeginInterval();
-	}
-	if (ajaOutput->mAudioQueuedSamplesSec.EndInterval()) {
-		blog(LOG_DEBUG, "raw audio samples/sec: %.2f", ajaOutput->mAudioQueuedSamplesSec.MovingAverage());
-		ajaOutput->mAudioQueuedSamplesSec.BeginInterval();
-	}
-
 	ajaOutput->QueueAudioFrames(frames, audioBytes);
-}
-
-bool AJAOutput::AlignAudio(const struct audio_data *frame, struct audio_data *output)
-{
-	// *output = *frame;
-
-	// if (frame->timestamp < mFirstVideoTS) {
-	// 	uint64_t duration = util_mul_div64(frame->frames, 1000000000ULL,
-	// 					   48000);
-	// 	uint64_t end_ts = frame->timestamp + duration;
-	// 	uint64_t cutoff;
-
-	// 	if (end_ts <= mFirstVideoTS)
-	// 		return false;
-
-	// 	cutoff = mFirstVideoTS - frame->timestamp;
-	// 	output->timestamp += cutoff;
-
-	// 	cutoff = util_mul_div64(cutoff, 48000,
-	// 				1000000000ULL);
-
-	// 	output->data[0] += audio_size * cutoff;
-
-	// 	output->frames -= (uint32_t)cutoff;
-	// }
-
-	return true;
 }
 
 static obs_properties_t *aja_output_get_properties(void *data)

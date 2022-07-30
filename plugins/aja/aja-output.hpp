@@ -73,7 +73,6 @@ public:
 	void ClearAudioQueue();
 	size_t VideoQueueSize();
 	size_t AudioQueueSize();
-	bool AlignAudio(const struct audio_data *frame, struct audio_data *output);
 	bool HaveEnoughAudio(size_t needAudioSize);
 	void DMAAudioFromQueue(NTV2AudioSystem audioSys);
 	void DMAVideoFromQueue();
@@ -125,9 +124,14 @@ public:
 	NTV2_POINTER mHostAudioBuffer;
 
 	uint64_t mLastTime { 0 };
-	aja::IntervalAverage<uint32_t> mAudioQueuedSamplesSec { AJATimerPrecisionMilliseconds, 1000, 192000 };
-	aja::IntervalAverage<uint32_t> mAudioQueuedBytesSec { AJATimerPrecisionMilliseconds, 1000, 192000 };
-	aja::IntervalAverage<uint32_t> mAudioWriteBytesSec { AJATimerPrecisionMilliseconds, 1000, 192000 };
+	uint32_t mVideoQCount { 0 };
+	uint32_t mAudioQCount { 0 };
+	uint32_t mVideoWriteCount { 0 };
+	uint32_t mAudioWriteCount { 0 };
+	aja::IntervalAverage<uint32_t> mVideoQueuedFramesSec { AJATimerPrecisionMilliseconds, 1000, 120 };
+	aja::IntervalAverage<uint32_t> mVideoWriteFramesSec { AJATimerPrecisionMilliseconds, 1000, 120 };
+	aja::IntervalAverage<uint32_t> mAudioQueuedSamplesSec { AJATimerPrecisionMilliseconds, 1000, 120 };
+	aja::IntervalAverage<uint32_t> mAudioWriteSamplesSec { AJATimerPrecisionMilliseconds, 1000, 120 };
 #ifdef AJA_WRITE_DEBUG_WAV
 	AJAWavWriter *mWaveWriter;
 #endif
