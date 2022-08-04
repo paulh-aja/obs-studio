@@ -1,10 +1,12 @@
 #pragma once
 
 #include "aja-props.hpp"
-
+#include "aja-timecode.hpp"
+#include "aja-tc-breaks.hpp"
 #include <ajantv2/includes/ntv2testpatterngen.h>
 
 #include <ajabase/common/types.h>
+#include <ajabase/common/timecode.h>
 #include <ajabase/system/thread.h>
 
 // #define AJA_WRITE_DEBUG_WAV
@@ -74,7 +76,7 @@ public:
 
 	void DMAAudioFromQueue(NTV2AudioSystem audioSys, uint32_t channels,
 			       uint32_t sampleRate, uint32_t sampleSize);
-	void DMAVideoFromQueue();
+	void DMAVideoFromQueue(NTV2Channel chan, const AJATimeBase &tb, int64_t tcFrame);
 
 	void CreateThread(bool enable = false);
 	void StopThread();
@@ -125,7 +127,7 @@ public:
 #ifdef AJA_WRITE_DEBUG_WAV
 	AJAWavWriter *mWaveWriter;
 #endif
-
+	int64_t mTCCount;
 private:
 	void reset_frame_counts();
 	void calculate_card_frame_indices(uint32_t numFrames, NTV2DeviceID id,
@@ -156,4 +158,5 @@ private:
 	obs_output_t *mOBSOutput;
 
 	NTV2XptConnections mCrosspoints;
+	aja::TimecodeBreakFinder mTCBreaks;
 };

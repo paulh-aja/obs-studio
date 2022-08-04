@@ -36,6 +36,9 @@ target_sources(
           aja-routing.hpp
           aja-source.cpp
           aja-source.hpp
+          aja-tc-breaks.hpp
+          aja-timecode.hpp
+          aja-timecode.cpp
           aja-vpid-data.cpp
           aja-vpid-data.hpp
           aja-widget-io.cpp

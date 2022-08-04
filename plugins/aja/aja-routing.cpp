@@ -476,6 +476,16 @@ bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
 				(UWord)i, rp.flags & kConvert3GOut);
 			card->SetSDIOutRGBLevelAConversion(
 				(UWord)i, rp.flags & kConvert3GaRGBOut);
+			
+			// SMPTE RP188 timecode data on SDI
+			if (props.enableTimecode && NTV2DeviceCanDoRP188(props.deviceID)) {
+				bool rp188Bypassed = false;
+				card->IsRP188BypassEnabled(channel, rp188Bypassed);
+				if (rp188Bypassed)
+					card->DisableRP188Bypass(channel);
+				card->SetRP188Mode(channel, NTV2_RP188_OUTPUT);
+				card->SetRP188SourceFilter(channel, 0);
+			}
 		}
 	}
 

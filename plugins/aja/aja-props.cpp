@@ -214,7 +214,8 @@ OutputProps::OutputProps(NTV2DeviceID devID)
 	  sdi4kTransport{SDITransport4K::TwoSampleInterleave},
 	  audioNumChannels{8},
 	  audioSampleSize{4},
-	  audioSampleRate{48000}
+	  audioSampleRate{48000},
+	  enableTimecode{false}
 {
 }
 
@@ -230,6 +231,7 @@ OutputProps::OutputProps(OutputProps &&props)
 	audioNumChannels = props.audioNumChannels;
 	audioSampleSize = props.audioSampleSize;
 	audioSampleRate = props.audioSampleRate;
+	enableTimecode = props.enableTimecode;
 }
 
 OutputProps::OutputProps(const OutputProps &props)
@@ -244,6 +246,7 @@ OutputProps::OutputProps(const OutputProps &props)
 	audioNumChannels = props.audioNumChannels;
 	audioSampleSize = props.audioSampleSize;
 	audioSampleRate = props.audioSampleRate;
+	enableTimecode = props.enableTimecode;
 }
 
 void OutputProps::operator=(const OutputProps &props)
@@ -258,6 +261,7 @@ void OutputProps::operator=(const OutputProps &props)
 	audioNumChannels = props.audioNumChannels;
 	audioSampleSize = props.audioSampleSize;
 	audioSampleRate = props.audioSampleRate;
+	enableTimecode = props.enableTimecode;
 }
 
 void OutputProps::operator=(OutputProps &&props)
@@ -272,6 +276,7 @@ void OutputProps::operator=(OutputProps &&props)
 	audioNumChannels = props.audioNumChannels;
 	audioSampleSize = props.audioSampleSize;
 	audioSampleRate = props.audioSampleRate;
+	enableTimecode = props.enableTimecode;
 }
 
 bool OutputProps::operator==(const OutputProps &props)
@@ -284,7 +289,8 @@ bool OutputProps::operator==(const OutputProps &props)
 		sdi4kTransport == props.sdi4kTransport &&
 		audioNumChannels == props.audioNumChannels &&
 		audioSampleSize == props.audioSampleSize &&
-		audioSampleRate == props.audioSampleRate);
+		audioSampleRate == props.audioSampleRate &&
+		enableTimecode == props.enableTimecode);
 }
 
 bool OutputProps::operator!=(const OutputProps &props)

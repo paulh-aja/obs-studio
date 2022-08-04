@@ -190,6 +190,7 @@ void AJAOutput::Initialize(const OutputProps &props)
 		    mFrameRateNum;
 	mVideoMax -= 100;
 	mAudioMax = (int64_t)kAudioSyncAdjust * 1000000 / props.audioSampleRate;
+
 	SetOutputProps(props);
 }
 
@@ -440,7 +441,7 @@ void AJAOutput::DMAAudioFromQueue(NTV2AudioSystem audioSys, uint32_t channels,
 }
 
 // lock video queue before calling
-void AJAOutput::DMAVideoFromQueue()
+void AJAOutput::DMAVideoFromQueue(NTV2Channel chan, const AJATimeBase &tb, int64_t tcFrame)
 {
 	bool writeFrame = true;
 	bool freeFrame = true;
@@ -470,6 +471,22 @@ void AJAOutput::DMAVideoFromQueue()
 	}
 
 	if (writeFrame) {
+		mTCCount++;
+		// SMPTE 12M timecode bitfields (lo and hi words)
+		AJATimeCode tc;
+		tc.SetStdTimecodeForHfr(false);
+		tc.Set((uint32_t)tcFrame);
+		AJAAncillaryData_Timecode atc;
+		atc.SetTimecode(tc, tb, false);
+		NTV2_RP188 rp188(0, 0, 0);
+		aja::SerializeRP188(atc, rp188.fLo, rp188.fHi);
+		std::string tcString;
+		tc.QueryString(tcString, tb, false);
+		blog(LOG_DEBUG, "AJAOutput::OutputThread: %s %li", tcString.c_str(), tcFrame);
+		mCard->SetRP188Data(chan, rp188);
+		mTCBreaks.NextFrame(tcFrame, tcString);
+		if (mTCBreaks.TimecodeBroke())
+			blog(LOG_DEBUG, "tc break %li", tcFrame);
 		// find the next buffer
 		uint32_t writeCardFrame = mWriteCardFrame + 1;
 		if (writeCardFrame > mLastCardFrame)
@@ -680,6 +697,11 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 	int64_t audioSyncSlowSum = 0;
 	int64_t audioSyncFastSum = 0;
 
+	aja::TimecodeGenerator tcg;
+	AJATimeBase tb(ajaOutput->mFrameRateNum, ajaOutput->mFrameRateDen, props.audioSampleRate);
+	bool isDropFrame = tb.IsNonIntegralRatio();
+	tcg.Init(aja::TimecodeSource::TimeOfDay, tb);
+
 	// thread loop
 	while (ajaOutput->ThreadRunning()) {
 		// Wait for preroll
@@ -690,6 +712,9 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 			blog(LOG_DEBUG,
 			     "AJAOutput::OutputThread: Audio Preroll complete");
 		}
+
+		int64_t tcFrame;
+		tcg.GetFrameNum(tcFrame);
 
 		// Check if a vsync occurred
 		uint32_t frameCount = ajaOutput->get_card_play_count();
@@ -710,8 +735,7 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 					ajaOutput->mPlayCardNext = playCardNext;
 					// Increment the play frame
 					ajaOutput->mCard->SetOutputFrame(
-						ajaOutput->mOutputProps
-							.Channel(),
+						props.Channel(),
 						ajaOutput->mPlayCardNext);
 					ajaOutput->mVideoPlayFrames++;
 				}
@@ -735,7 +759,7 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 			const std::lock_guard<std::mutex> lock(
 				ajaOutput->mVideoLock);
 			while (ajaOutput->VideoQueueSize() > 0) {
-				ajaOutput->DMAVideoFromQueue();
+				ajaOutput->DMAVideoFromQueue(props.Channel(), tb, tcFrame);
 			}
 		}
 
@@ -1062,6 +1086,7 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 
 	NTV2DeviceID deviceID = card->GetDeviceID();
 	OutputProps outputProps(deviceID);
+	outputProps.enableTimecode = true; // TESTING
 	outputProps.ioSelect = static_cast<IOSelection>(
 		obs_data_get_int(settings, kUIPropOutput.id));
 	outputProps.videoFormat = static_cast<NTV2VideoFormat>(
@@ -1149,6 +1174,7 @@ static bool aja_output_start(void *data)
 		blog(LOG_ERROR, "aja_output_start: Plugin instance is null!");
 		return false;
 	}
+	ajaOutput->mTCCount = 0;
 
 	const std::string &cardID = ajaOutput->mCardID;
 	auto &cardManager = aja::CardManager::Instance();

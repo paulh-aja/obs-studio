@@ -75,4 +75,16 @@ enum class HDMIWireFormat {
 	Unknown
 };
 
+namespace aja {
+enum class TimecodeSource {
+	None = 0,
+	Auto = 1,
+	LTC = 2,
+	VITC1 = 3,
+	VITC2 = 4,
+	TimeOfDay = 5,
+	Unknown
+};
+} // aja
+
 using VPIDSpec = std::pair<RasterDefinition, VPIDStandard>;

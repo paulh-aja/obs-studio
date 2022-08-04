@@ -79,4 +79,5 @@ public:
 	uint32_t audioNumChannels;
 	uint32_t audioSampleSize;
 	uint32_t audioSampleRate;
+	bool enableTimecode;
 };
