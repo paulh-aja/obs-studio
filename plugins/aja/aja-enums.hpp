@@ -83,6 +83,7 @@ enum class TimecodeSource {
 	VITC1 = 3,
 	VITC2 = 4,
 	TimeOfDay = 5,
+	ZeroBased = 6,
 	Unknown
 };
 } // aja

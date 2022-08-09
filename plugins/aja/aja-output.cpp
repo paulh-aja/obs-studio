@@ -441,7 +441,8 @@ void AJAOutput::DMAAudioFromQueue(NTV2AudioSystem audioSys, uint32_t channels,
 }
 
 // lock video queue before calling
-void AJAOutput::DMAVideoFromQueue(NTV2Channel chan, const AJATimeBase &tb, int64_t tcFrame)
+void AJAOutput::DMAVideoFromQueue(NTV2Channel chan,
+				  aja::TimecodeGenerator &tcg)
 {
 	bool writeFrame = true;
 	bool freeFrame = true;
@@ -449,8 +450,11 @@ void AJAOutput::DMAVideoFromQueue(NTV2Channel chan, const AJATimeBase &tb, int64
 	auto &vf = mVideoQueue->front();
 	auto data = vf.frame.data[0];
 
-	if (!mFirstVideoTS)
+	if (!mFirstVideoTS) {
 		mFirstVideoTS = vf.frame.timestamp;
+		tcg.SetTimeDiff(vf.frame.timestamp / 1000);
+	}
+	blog(LOG_DEBUG, "vf ts diff: %li", vf.frame.timestamp - mLastVideoTS);
 	mLastVideoTS = vf.frame.timestamp;
 
 	mVideoDelay = (((int64_t)mWriteCardFrame + (int64_t)mNumCardFrames -
@@ -470,23 +474,21 @@ void AJAOutput::DMAVideoFromQueue(NTV2Channel chan, const AJATimeBase &tb, int64
 		mVideoAdjust = 0;
 	}
 
+	uint64_t now = os_gettime_ns();
+	// int64_t diffTime = now - mLastVideoTS_DMA;
+	mLastVideoTS_DMA = now;
+	// blog(LOG_DEBUG, "v dma: %li", diffTime);
+	NTV2_RP188 rp188(0, 0, 0);
+	uint64_t lastVideoUSec = mLastVideoTS / 1000;
+	int64_t tcFrame;
+	tcg.GetFrameNum(tcFrame, lastVideoUSec);
+	tcg.GetRP188(rp188, lastVideoUSec);
+	mTCBreaks.NextFrame((uint64_t)tcFrame);
+	if (mTCBreaks.TimecodeBroke())
+		blog(LOG_DEBUG, "timecode break %li", tcFrame);
 	if (writeFrame) {
-		mTCCount++;
-		// SMPTE 12M timecode bitfields (lo and hi words)
-		AJATimeCode tc;
-		tc.SetStdTimecodeForHfr(false);
-		tc.Set((uint32_t)tcFrame);
-		AJAAncillaryData_Timecode atc;
-		atc.SetTimecode(tc, tb, false);
-		NTV2_RP188 rp188(0, 0, 0);
-		aja::SerializeRP188(atc, rp188.fLo, rp188.fHi);
-		std::string tcString;
-		tc.QueryString(tcString, tb, false);
-		blog(LOG_DEBUG, "AJAOutput::OutputThread: %s %li", tcString.c_str(), tcFrame);
 		mCard->SetRP188Data(chan, rp188);
-		mTCBreaks.NextFrame(tcFrame, tcString);
-		if (mTCBreaks.TimecodeBroke())
-			blog(LOG_DEBUG, "tc break %li", tcFrame);
+
 		// find the next buffer
 		uint32_t writeCardFrame = mWriteCardFrame + 1;
 		if (writeCardFrame > mLastCardFrame)
@@ -697,10 +699,10 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 	int64_t audioSyncSlowSum = 0;
 	int64_t audioSyncFastSum = 0;
 
-	aja::TimecodeGenerator tcg;
-	AJATimeBase tb(ajaOutput->mFrameRateNum, ajaOutput->mFrameRateDen, props.audioSampleRate);
-	bool isDropFrame = tb.IsNonIntegralRatio();
-	tcg.Init(aja::TimecodeSource::TimeOfDay, tb);
+	AJATimeBase tb(ajaOutput->mFrameRateNum, ajaOutput->mFrameRateDen,
+		       props.audioSampleRate);
+	aja::TimecodeGenerator tcg(aja::TimecodeSource::TimeOfDay, tb);
+	tcg.SetHalfRateHFR(false);
 
 	// thread loop
 	while (ajaOutput->ThreadRunning()) {
@@ -712,9 +714,6 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 			blog(LOG_DEBUG,
 			     "AJAOutput::OutputThread: Audio Preroll complete");
 		}
-
-		int64_t tcFrame;
-		tcg.GetFrameNum(tcFrame);
 
 		// Check if a vsync occurred
 		uint32_t frameCount = ajaOutput->get_card_play_count();
@@ -759,7 +758,8 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 			const std::lock_guard<std::mutex> lock(
 				ajaOutput->mVideoLock);
 			while (ajaOutput->VideoQueueSize() > 0) {
-				ajaOutput->DMAVideoFromQueue(props.Channel(), tb, tcFrame);
+				ajaOutput->DMAVideoFromQueue(props.Channel(),
+							     tcg);
 			}
 		}
 
@@ -1174,8 +1174,8 @@ static bool aja_output_start(void *data)
 		blog(LOG_ERROR, "aja_output_start: Plugin instance is null!");
 		return false;
 	}
-	ajaOutput->mTCCount = 0;
-
+	ajaOutput->mLastVideoTS_DMA = 0;
+	ajaOutput->mTCBreaks.Clear();
 	const std::string &cardID = ajaOutput->mCardID;
 	auto &cardManager = aja::CardManager::Instance();
 	cardManager.EnumerateCards();

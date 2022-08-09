@@ -76,7 +76,8 @@ public:
 
 	void DMAAudioFromQueue(NTV2AudioSystem audioSys, uint32_t channels,
 			       uint32_t sampleRate, uint32_t sampleSize);
-	void DMAVideoFromQueue(NTV2Channel chan, const AJATimeBase &tb, int64_t tcFrame);
+	void DMAVideoFromQueue(NTV2Channel chan,
+			       aja::TimecodeGenerator &tcg);
 
 	void CreateThread(bool enable = false);
 	void StopThread();
@@ -127,7 +128,9 @@ public:
 #ifdef AJA_WRITE_DEBUG_WAV
 	AJAWavWriter *mWaveWriter;
 #endif
-	int64_t mTCCount;
+	aja::TimecodeBreakFinder mTCBreaks;
+	uint64_t mLastVideoTS_DMA{0};
+
 private:
 	void reset_frame_counts();
 	void calculate_card_frame_indices(uint32_t numFrames, NTV2DeviceID id,
@@ -158,5 +161,4 @@ private:
 	obs_output_t *mOBSOutput;
 
 	NTV2XptConnections mCrosspoints;
-	aja::TimecodeBreakFinder mTCBreaks;
 };
