@@ -79,9 +79,27 @@ static const UIProperty kUIPropPixelFormatSelect = {
 	"",
 };
 
+static const UIProperty kUIPropVideoInfo = {
+	"ui_prop_video_info",
+	"Format",
+	"",
+};
+
 static const UIProperty kUIPropAutoStartOutput = {
 	"ui_prop_auto_start_output",
 	"AutoStart",
+	"",
+};
+
+static const UIProperty kUIPropMatchGenlock = {
+	"ui_prop_match_genlock_fps",
+	"MatchGenlockFPS",
+	"",
+};
+
+static const UIProperty kUIPropMatchOBS = {
+	"ui_prop_match_obs_fps",
+	"MatchOBSFPS",
 	"",
 };
 

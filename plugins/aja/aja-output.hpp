@@ -1,6 +1,7 @@
 #pragma once
 
 #include "aja-props.hpp"
+#include "aja-routing.hpp"
 
 #include <ajantv2/includes/ntv2testpatterngen.h>
 
@@ -50,13 +51,18 @@ public:
 
 	CNTV2Card *GetCard();
 
-	void Initialize(const OutputProps &props);
+	void Initialize(const IOConfig &ioConf);
 
 	void SetOBSOutput(obs_output_t *output);
 	obs_output_t *GetOBSOutput();
 
-	void SetOutputProps(const OutputProps &props);
-	OutputProps GetOutputProps() const;
+	void SetIoConfig(const IOConfig &ioConf);
+	IOConfig &GetIoConfig();
+
+	void HandleConfigSpecialCases(NTV2DeviceID id, const char *outputID,
+				      const aja::CardEntryPtr cardEntry,
+				      const aja::RoutingPreset &rp,
+				      IOConfig &ioConf);
 
 	void CacheConnections(const NTV2XptConnections &cnx);
 	void ClearConnections();
@@ -79,6 +85,8 @@ public:
 	void CreateThread(bool enable = false);
 	void StopThread();
 	bool ThreadRunning();
+	void SetOutputRunning(bool running);
+	bool OutputRunning() const;
 	static void OutputThread(AJAThread *thread, void *ctx);
 
 	std::string mCardID;
@@ -138,11 +146,12 @@ private:
 
 	CNTV2Card *mCard;
 
-	OutputProps mOutputProps;
+	IOConfig mIoConfig;
 
 	NTV2TestPatternBuffer mTestPattern;
 
-	bool mIsRunning;
+	bool mThreadRunning;
+	bool mOutputRunning;
 	bool mAudioStarted;
 
 	AJAThread mRunThread;

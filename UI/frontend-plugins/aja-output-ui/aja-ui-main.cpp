@@ -257,7 +257,7 @@ static void toggle_multi_view(CNTV2Card *card, NTV2InputSource src, bool enable)
 	NTV2AudioSystem audioSys = NTV2InputSourceToAudioSystem(src);
 	if (NTV2DeviceCanDoHDMIMultiView(deviceId)) {
 		NTV2XptConnections cnx;
-		if (aja::Routing::ParseRouteString(oss.str(), cnx)) {
+		if (aja::RoutingManager::ParseRouteString(oss.str(), cnx)) {
 			card->SetMultiRasterBypassEnable(!enable);
 			if (enable) {
 				card->ApplySignalRoute(cnx, false);

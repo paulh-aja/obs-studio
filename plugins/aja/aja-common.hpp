@@ -1,4 +1,5 @@
 #include "aja-enums.hpp"
+#include "aja-card-manager.hpp"
 
 #include <obs-module.h>
 
@@ -25,24 +26,31 @@ static const SDITransport4K kDefaultAJASDITransport4K =
 	SDITransport4K::TwoSampleInterleave;
 
 // Common OBS property helpers used by both the capture and output plugins
-extern void filter_io_selection_input_list(const std::string &cardID,
+extern void filter_io_selection_input_list(const aja::CardEntryPtr cardEntry,
+					   const NTV2VideoFormat vf,
+					   const NTV2PixelFormat pf,
 					   const std::string &channelOwner,
 					   obs_property_t *list);
-extern void filter_io_selection_output_list(const std::string &cardID,
+extern void filter_io_selection_output_list(const aja::CardEntryPtr cardEntry,
+					    const NTV2VideoFormat vf,
+					    const NTV2PixelFormat pf,
 					    const std::string &channelOwner,
 					    obs_property_t *list);
-extern void populate_io_selection_input_list(const std::string &cardID,
+extern void populate_io_selection_input_list(const aja::CardEntryPtr cardEntry,
+					     const NTV2VideoFormat vf,
+					     const NTV2PixelFormat pf,
 					     const std::string &channelOwner,
-					     NTV2DeviceID deviceID,
 					     obs_property_t *list);
-extern void populate_io_selection_output_list(const std::string &cardID,
+extern void populate_io_selection_output_list(const aja::CardEntryPtr cardEntry,
+					      const NTV2VideoFormat vf,
+					      const NTV2PixelFormat pf,
 					      const std::string &channelOwner,
-					      NTV2DeviceID deviceID,
 					      obs_property_t *list);
 extern void
 populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 			   NTV2VideoFormat genlockFormat = NTV2_FORMAT_UNKNOWN,
-			   bool want4KHFR = false, bool matchFPS = false);
+			   bool want4KHFR = false, bool matchGenlock = true,
+			   bool matchOBS = false);
 extern void populate_pixel_format_list(NTV2DeviceID deviceID,
 				       obs_property_t *list);
 extern void populate_sdi_transport_list(obs_property_t *list,
@@ -93,6 +101,7 @@ extern void IOSelectionToInputSources(IOSelection io,
 				      NTV2InputSourceSet &inputSources);
 extern void IOSelectionToOutputDests(IOSelection io,
 				     NTV2OutputDestinations &outputDests);
+extern ConnectionKind IOSelectionToConnectionKind(IOSelection io);
 extern bool DeviceCanDoIOSelectionIn(NTV2DeviceID id, IOSelection io);
 extern bool DeviceCanDoIOSelectionOut(NTV2DeviceID id, IOSelection io);
 extern bool IsSDIOneWireIOSelection(IOSelection io);
@@ -105,6 +114,8 @@ extern bool IsIOSelectionHDMI(IOSelection io);
 extern std::string MakeCardID(CNTV2Card &card);
 
 extern RasterDefinition DetermineRasterDefinition(NTV2VideoFormat vf);
+extern bool IsStandard1080i(NTV2Standard standard);
+extern bool IsStandard1080p(NTV2Standard standard);
 extern VPIDStandard DetermineVPIDStandard(IOSelection io, NTV2VideoFormat vf,
 					  NTV2PixelFormat pf, SDITransport trx,
 					  SDITransport4K t4k);

@@ -28,12 +28,11 @@ target_sources(
           aja-output.cpp
           aja-enums.hpp
           aja-output.hpp
-          aja-presets.cpp
-          aja-presets.hpp
           aja-props.cpp
           aja-props.hpp
           aja-routing.cpp
           aja-routing.hpp
+          aja-routing-presets.hpp
           aja-source.cpp
           aja-source.hpp
           aja-vpid-data.cpp

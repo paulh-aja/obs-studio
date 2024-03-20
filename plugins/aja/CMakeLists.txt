@@ -22,16 +22,15 @@ target_sources(
   PRIVATE # cmake-format: sortable
           aja-card-manager.cpp
           aja-common.cpp
-          aja-presets.cpp
           aja-props.cpp
           aja-routing.cpp
+          aja-routing-presets.cpp
           aja-vpid-data.cpp
           aja-widget-io.cpp
   PUBLIC # cmake-format: sortable
          aja-card-manager.hpp
          aja-common.hpp
          aja-enums.hpp
-         aja-presets.hpp
          aja-props.hpp
          aja-routing.hpp
          aja-ui-props.hpp

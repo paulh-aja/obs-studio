@@ -2,6 +2,7 @@
 #include "aja-common.hpp"
 #include "aja-ui-props.hpp"
 #include "aja-props.hpp"
+#include "aja-routing.hpp"
 
 #include <ajantv2/includes/ntv2debug.h>
 #include <ajantv2/includes/ntv2devicescanner.h>
@@ -9,84 +10,93 @@
 #include <ajantv2/includes/ntv2signalrouter.h>
 #include <ajantv2/includes/ntv2utils.h>
 
-void filter_io_selection_input_list(const std::string &cardID,
+void filter_io_selection_input_list(const aja::CardEntryPtr cardEntry,
+				    const NTV2VideoFormat vf,
+				    const NTV2PixelFormat pf,
 				    const std::string &channelOwner,
 				    obs_property_t *list)
 {
-	auto &cardManager = aja::CardManager::Instance();
-	auto cardEntry = cardManager.GetCardEntry(cardID);
-	if (!cardEntry) {
-		blog(LOG_DEBUG,
-		     "filter_io_selection_input_list: Card Entry not found for %s",
-		     cardID.c_str());
+	if (!cardEntry)
 		return;
-	}
-
-	NTV2DeviceID deviceID = DEVICE_ID_NOTFOUND;
-	CNTV2Card *card = cardEntry->GetCard();
-	if (card)
-		deviceID = card->GetDeviceID();
 
 	// Gray out the IOSelection list items that are in use by other plugin instances
+	NTV2DeviceID deviceID = cardEntry->GetDeviceID();
 	for (size_t idx = 0; idx < obs_property_list_item_count(list); idx++) {
-		auto io_select = static_cast<IOSelection>(
+		auto ioSelect = static_cast<IOSelection>(
 			obs_property_list_item_int(list, idx));
 
-		if (io_select == IOSelection::Invalid) {
+		if (ioSelect == IOSelection::Invalid) {
 			obs_property_list_item_disable(list, idx, false);
 			continue;
 		}
 
-		bool enabled = cardEntry->InputSelectionReady(
-			io_select, deviceID, channelOwner);
+		IOConfig ioConf(deviceID, NTV2_MODE_CAPTURE, ioSelect, vf, pf);
+		bool enabled = cardEntry->ChannelsReady(ioConf.Channels(),
+							channelOwner) &&
+			       cardEntry->ChannelsReady(ioConf.Framestores(),
+							channelOwner);
+		// See CardEntry note about Kona5 & io4K+ 6G/12G-SDI
+		if (ioSelect == IOSelection::SDI1 &&
+		    cardEntry->IsKona5Io4KPlus6g12gOutputEnabled()) {
+			enabled = true;
+		}
+		// bool enabled = cardEntry->InputSelectionReady(
+		// 	ioSelect, deviceID, channelOwner);
 		obs_property_list_item_disable(list, idx, !enabled);
 		blog(LOG_DEBUG, "IOSelection %s = %s",
-		     aja::IOSelectionToString(io_select).c_str(),
+		     aja::IOSelectionToString(ioSelect).c_str(),
 		     enabled ? "enabled" : "disabled");
 	}
 }
 
-void filter_io_selection_output_list(const std::string &cardID,
+void filter_io_selection_output_list(const aja::CardEntryPtr cardEntry,
+				     const NTV2VideoFormat vf,
+				     const NTV2PixelFormat pf,
 				     const std::string &channelOwner,
 				     obs_property_t *list)
 {
-	auto &cardManager = aja::CardManager::Instance();
-	auto cardEntry = cardManager.GetCardEntry(cardID);
-	if (!cardEntry) {
-		blog(LOG_DEBUG,
-		     "filter_io_selection_output_list: Card Entry not found for %s",
-		     cardID.c_str());
+	if (!cardEntry)
 		return;
-	}
-
-	NTV2DeviceID deviceID = DEVICE_ID_NOTFOUND;
-	CNTV2Card *card = cardEntry->GetCard();
-	if (card)
-		deviceID = card->GetDeviceID();
 
 	// Gray out the IOSelection list items that are in use by other plugin instances
+	NTV2DeviceID deviceID = cardEntry->GetDeviceID();
 	for (size_t idx = 0; idx < obs_property_list_item_count(list); idx++) {
-		auto io_select = static_cast<IOSelection>(
+		auto ioSelect = static_cast<IOSelection>(
 			obs_property_list_item_int(list, idx));
-		if (io_select == IOSelection::Invalid) {
+		if (ioSelect == IOSelection::Invalid) {
 			obs_property_list_item_disable(list, idx, false);
 			continue;
 		}
 
-		bool enabled = cardEntry->OutputSelectionReady(
-			io_select, deviceID, channelOwner);
+		IOConfig ioConf(deviceID, NTV2_MODE_DISPLAY, ioSelect, vf, pf);
+		bool enabled = cardEntry->ChannelsReady(ioConf.Channels(),
+							channelOwner) &&
+			       cardEntry->ChannelsReady(ioConf.Framestores(),
+							channelOwner);
+		// See CardEntry note about Kona5 & io4K+ 6G/12G-SDI
+		if (ioSelect == IOSelection::SDI3 &&
+		    cardEntry->IsKona5Io4KPlus6g12gCaptureEnabled()) {
+			enabled = true;
+		}
+		// bool enabled = cardEntry->OutputSelectionReady(
+		// 	ioSelect, deviceID, channelOwner);
 		obs_property_list_item_disable(list, idx, !enabled);
 		blog(LOG_DEBUG, "IOSelection %s = %s",
-		     aja::IOSelectionToString(io_select).c_str(),
+		     aja::IOSelectionToString(ioSelect).c_str(),
 		     enabled ? "enabled" : "disabled");
 	}
 }
 
-void populate_io_selection_input_list(const std::string &cardID,
+void populate_io_selection_input_list(const aja::CardEntryPtr cardEntry,
+				      const NTV2VideoFormat vf,
+				      const NTV2PixelFormat pf,
 				      const std::string &channelOwner,
-				      NTV2DeviceID deviceID,
 				      obs_property_t *list)
 {
+	if (!cardEntry)
+		return;
+
+	NTV2DeviceID deviceID = cardEntry->GetDeviceID();
 	obs_property_list_clear(list);
 	obs_property_list_add_int(list,
 				  obs_module_text(kUIPropIOSelectNone.text),
@@ -105,19 +115,24 @@ void populate_io_selection_input_list(const std::string &cardID,
 		}
 	}
 
-	filter_io_selection_input_list(cardID, channelOwner, list);
+	filter_io_selection_input_list(cardEntry, vf, pf, channelOwner, list);
 }
 
-void populate_io_selection_output_list(const std::string &cardID,
+void populate_io_selection_output_list(const aja::CardEntryPtr cardEntry,
+				       const NTV2VideoFormat vf,
+				       const NTV2PixelFormat pf,
 				       const std::string &channelOwner,
-				       NTV2DeviceID deviceID,
 				       obs_property_t *list)
 {
+	if (!cardEntry)
+		return;
+
 	obs_property_list_clear(list);
 	obs_property_list_add_int(list,
 				  obs_module_text(kUIPropIOSelectNone.text),
 				  static_cast<long long>(IOSelection::Invalid));
 
+	NTV2DeviceID deviceID = cardEntry->GetDeviceID();
 	if (deviceID == DEVICE_ID_TTAP_PRO) {
 		obs_property_list_add_int(
 			list, "SDI & HDMI",
@@ -142,12 +157,12 @@ void populate_io_selection_output_list(const std::string &cardID,
 		}
 	}
 
-	filter_io_selection_output_list(cardID, channelOwner, list);
+	filter_io_selection_output_list(cardEntry, vf, pf, channelOwner, list);
 }
 
 void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 				NTV2VideoFormat genlockFormat, bool want4KHFR,
-				bool matchFPS)
+				bool matchGenlock, bool matchOBS)
 {
 	VideoFormatList videoFormats = {};
 	VideoStandardList orderedStandards = {};
@@ -177,11 +192,11 @@ void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 		bool addFormat = true;
 
 		// Filter formats by framerate family if specified
-		if (genlockFormat != NTV2_FORMAT_UNKNOWN)
+		if (matchGenlock && genlockFormat != NTV2_FORMAT_UNKNOWN)
 			addFormat = IsMultiFormatCompatible(genlockFormat, vf);
 
 		struct obs_video_info ovi;
-		if (matchFPS && obs_get_video_info(&ovi)) {
+		if (matchOBS && obs_get_video_info(&ovi)) {
 			NTV2FrameRate frameRate =
 				GetNTV2FrameRateFromVideoFormat(vf);
 			ULWord fpsNum = 0;
@@ -196,6 +211,8 @@ void populate_video_format_list(NTV2DeviceID deviceID, obs_property_t *list,
 
 		if (addFormat) {
 			std::string name = NTV2VideoFormatToString(vf, true);
+			blog(LOG_DEBUG, "aja_populate_vid_format_list: %s",
+			     name.c_str());
 			obs_property_list_add_int(list, name.c_str(), (int)vf);
 		}
 	}
@@ -453,7 +470,8 @@ bool CardCanDoHDMIMonitorInput(NTV2DeviceID id)
 {
 	return (id == DEVICE_ID_IO4K || id == DEVICE_ID_IO4KUFC ||
 		id == DEVICE_ID_IO4KPLUS || id == DEVICE_ID_IOXT ||
-		id == DEVICE_ID_IOX3 || id == DEVICE_ID_KONALHI);
+		id == DEVICE_ID_IOX3 || id == DEVICE_ID_KONALHI ||
+		id == DEVICE_ID_KONAX);
 }
 
 // Cards with a dedicated HDMI Monitor Output, tied to "Framestore 4".
@@ -463,7 +481,7 @@ bool CardCanDoHDMIMonitorOutput(NTV2DeviceID id)
 		id == DEVICE_ID_IOXT || id == DEVICE_ID_IOX3 ||
 		id == DEVICE_ID_KONA4 || id == DEVICE_ID_KONA5 ||
 		id == DEVICE_ID_KONA5_8K || id == DEVICE_ID_KONA5_2X4K ||
-		id == DEVICE_ID_KONA5_8KMK);
+		id == DEVICE_ID_KONA5_8KMK || id == DEVICE_ID_KONAX);
 }
 
 // Cards capable of 1x SDI at 6G/12G.
@@ -851,6 +869,46 @@ void IOSelectionToOutputDests(IOSelection io,
 	}
 }
 
+ConnectionKind IOSelectionToConnectionKind(IOSelection io)
+{
+	ConnectionKind kind = ConnectionKind::Unknown;
+	switch (io) {
+	case IOSelection::SDI1:
+	case IOSelection::SDI2:
+	case IOSelection::SDI3:
+	case IOSelection::SDI4:
+	case IOSelection::SDI5:
+	case IOSelection::SDI6:
+	case IOSelection::SDI7:
+	case IOSelection::SDI8:
+	case IOSelection::SDI1_2:
+	case IOSelection::SDI3_4:
+	case IOSelection::SDI5_6:
+	case IOSelection::SDI7_8:
+	case IOSelection::SDI1__4:
+	case IOSelection::SDI5__8:
+		kind = ConnectionKind::SDI;
+		break;
+	case IOSelection::HDMI1:
+	case IOSelection::HDMI2:
+	case IOSelection::HDMI3:
+	case IOSelection::HDMI4:
+	case IOSelection::HDMIMonitorIn:
+	case IOSelection::HDMIMonitorOut:
+		kind = ConnectionKind::HDMI;
+		break;
+	case IOSelection::AnalogIn:
+	case IOSelection::AnalogOut:
+		kind = ConnectionKind::Analog;
+		break;
+	default:
+	case IOSelection::Invalid:
+		break;
+	}
+
+	return kind;
+}
+
 bool DeviceCanDoIOSelectionIn(NTV2DeviceID id, IOSelection io)
 {
 	// Hide "HDMI1" list selection on devices which have a discrete "HDMI IN" port.
@@ -858,6 +916,10 @@ bool DeviceCanDoIOSelectionIn(NTV2DeviceID id, IOSelection io)
 		return false;
 	}
 	if (io == IOSelection::HDMIMonitorIn && id == DEVICE_ID_KONAHDMI) {
+		return false;
+	}
+	if ((IsSDITwoWireIOSelection(io) || IsSDIFourWireIOSelection(io)) &&
+	    id == DEVICE_ID_KONA5_2X4K) {
 		return false;
 	}
 
@@ -881,6 +943,11 @@ bool DeviceCanDoIOSelectionIn(NTV2DeviceID id, IOSelection io)
 
 bool DeviceCanDoIOSelectionOut(NTV2DeviceID id, IOSelection io)
 {
+	if ((IsSDITwoWireIOSelection(io) || IsSDIFourWireIOSelection(io)) &&
+	    id == DEVICE_ID_KONA5_2X4K) {
+		return false;
+	}
+
 	NTV2OutputDestinations outputDests;
 	if (io != IOSelection::Invalid) {
 		IOSelectionToOutputDests(io, outputDests);
@@ -1016,7 +1083,7 @@ RasterDefinition DetermineRasterDefinition(NTV2VideoFormat vf)
 	return def;
 }
 
-inline bool IsStandard1080i(NTV2Standard standard)
+bool IsStandard1080i(NTV2Standard standard)
 {
 	if (standard == NTV2_STANDARD_1080 ||
 	    standard == NTV2_STANDARD_2Kx1080i) {
@@ -1024,7 +1091,7 @@ inline bool IsStandard1080i(NTV2Standard standard)
 	}
 	return false;
 }
-inline bool IsStandard1080p(NTV2Standard standard)
+bool IsStandard1080p(NTV2Standard standard)
 {
 	if (standard == NTV2_STANDARD_1080p || standard == NTV2_STANDARD_2K ||
 	    standard == NTV2_STANDARD_2Kx1080p) {

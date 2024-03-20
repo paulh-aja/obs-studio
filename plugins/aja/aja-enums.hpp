@@ -6,6 +6,7 @@
 
 // Flags corresponding to card register enables
 typedef enum {
+	kNoFlags,
 	kEnable3GOut = 1 << 0,
 	kEnable6GOut = 1 << 1,
 	kEnable12GOut = 1 << 2,

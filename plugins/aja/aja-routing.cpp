@@ -11,16 +11,158 @@
 #include <obs-module.h>
 
 namespace aja {
+
+bool RoutingPreset::ToConnections(NTV2XptConnections &cnx,
+				  NTV2Channel firstChannel,
+				  NTV2Channel firstFramestore) const
+{
+	return RoutingManager::ParseRouteString(
+		routeStringSubstitute(firstChannel, firstFramestore), cnx);
+}
+
+bool RoutingPreset::ToWidgetChannelMap(WidgetChannelMap &wcMap,
+				       NTV2Channel firstChannel,
+				       NTV2Channel firstFramestore) const
+{
+	NTV2XptConnections cnx;
+	if (!ToConnections(cnx, firstChannel, firstFramestore)) {
+		return false;
+	}
+
+	for (auto c : cnx) {
+		WidgetInputSocket inp;
+		WidgetInputSocket::GetWidgetInputSocketByXpt(c.first, inp);
+		if (wcMap.find(inp.name) == wcMap.end()) {
+			wcMap[inp.name] = {inp.channel};
+		} else {
+			if (std::find(wcMap[inp.name].begin(),
+				      wcMap[inp.name].end(),
+				      inp.channel) == wcMap[inp.name].end()) {
+				wcMap[inp.name].push_back(inp.channel);
+			}
+		}
+
+		WidgetOutputSocket out;
+		WidgetOutputSocket::GetWidgetOutputSocketByXpt(c.second, out);
+		if (wcMap.find(out.name) == wcMap.end()) {
+			wcMap[out.name] = {out.channel};
+		} else {
+			if (std::find(wcMap[out.name].begin(),
+				      wcMap[out.name].end(),
+				      out.channel) == wcMap[out.name].end()) {
+				wcMap[out.name].push_back(out.channel);
+			}
+		}
+	}
+
+	return true;
+}
+
+bool RoutingPreset::ToChannelList(NTV2ChannelList &chans, NTV2Mode mode,
+				  NTV2Channel firstChannel,
+				  NTV2Channel firstFramestore) const
+{
+	if (mode == NTV2_MODE_CAPTURE && IsKona5Io4KPlus6G12GCapture()) {
+		chans.push_back(NTV2_CHANNEL1);
+		chans.push_back(NTV2_CHANNEL2);
+		return true;
+	} else if (mode == NTV2_MODE_DISPLAY && IsKona5Io4KPlus6G12GOutput()) {
+		chans.push_back(NTV2_CHANNEL3);
+		chans.push_back(NTV2_CHANNEL4);
+	}
+
+	WidgetChannelMap wcMap;
+	if (!ToWidgetChannelMap(wcMap, firstChannel, firstFramestore)) {
+		return false;
+	}
+
+	for (auto &&w : wcMap) {
+		if (w.first == "hdmi" &&
+		    (id == AJA_RP_OUT_HDMI_ONE_WIRE_RGB ||
+		     id == AJA_RP_OUT_HDMI_ONE_WIRE_YCBCR ||
+		     id == HDMI_UHD_4K_LFR_YCbCr_Display ||
+		     id == HDMI_UHD_4K_LFR_YCbCr_Display_Kona5_8K)) {
+			continue;
+		}
+		for (auto &&c : w.second) {
+			if (std::find(chans.begin(), chans.end(), c) ==
+			    chans.end()) {
+				chans.emplace_back(std::move(c));
+			}
+		}
+	}
+
+	return true;
+}
+
+bool RoutingPreset::IsKona5Io4KPlus6G12GCapture() const
+{
+	return (id == UHD4K_ST2018_6G_Squares_2SI_RGB_Capture_Kona5_io4KPlus ||
+		id == UHD4K_ST2018_12G_Squares_2SI_RGB_Capture_Kona5_io4KPlus ||
+		id == UHD4K_ST2018_6G_Squares_2SI_YCbCr_Capture_Kona5_io4KPlus ||
+		id == UHD4K_ST2018_12G_Squares_2SI_YCbCr_Capture_Kona5_io4KPlus);
+}
+
+bool RoutingPreset::IsKona5Io4KPlus6G12GOutput() const
+{
+	return (id == UHD4K_ST2018_6G_Squares_2SI_YCbCr_Display_Kona5_io4KPlus ||
+		id == UHD4K_ST2018_12G_Squares_2SI_YCbCr_Display_Kona5_io4KPlus);
+}
+
+std::string
+RoutingPreset::routeStringSubstitute(NTV2Channel firstChannel,
+				     NTV2Channel firstFramestore) const
+{
+	// if (verbatim) {
+	// 	firstChannel = NTV2_CHANNEL1;
+	// 	firstFramestore = NTV2_CHANNEL1;
+	// }
+
+	std::string tmp = route_string;
+	ULWord first_channel_index = GetIndexForNTV2Channel(firstChannel);
+	ULWord first_framestore_index = GetIndexForNTV2Channel(firstFramestore);
+	const std::vector<std::string> fs_associated = {
+		kFramebufferNickname, kTSIMuxNickname, kDualLinkInNickname,
+		kDualLinkOutNickname}; // widgets associated to framestores
+	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
+		for (const auto &name : fs_associated) {
+			std::string fs_placeholder = std::string(
+				name + "[{ch" + aja::to_string(c + 1) + "}]");
+			aja::replace(
+				tmp, fs_placeholder,
+				name + "[" +
+					aja::to_string(first_framestore_index) +
+					"]");
+		}
+		first_framestore_index++;
+	}
+	ULWord start_channel_index = GetIndexForNTV2Channel(firstChannel);
+	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
+		std::string channel_placeholder =
+			std::string("{ch" + aja::to_string(c + 1) + "}");
+		aja::replace(tmp, channel_placeholder,
+			     aja::to_string(start_channel_index++));
+	}
+
+	return tmp;
+}
+
+RoutingManager::RoutingManager()
+{
+	build_preset_table();
+}
+
 /*
  * Parse the widget routing shorthand string into a map of input and output NTV2CrosspointIDs.
  * For example "sdi[0][0]->fb[0][0]" is shorthand for connecting the output crosspoint for
  * SDI1/Datastream1 (NTV2_XptSDIIn1) to the input crosspoint for Framestore1/Datastream1 (NTV2_XptFrameBuffer1Input).
  * These routing shorthand strings are found within the RoutingConfig structs in the "routing" sub-directory of the plugin.
  */
-bool Routing::ParseRouteString(const std::string &route,
-			       NTV2XptConnections &cnx)
+bool RoutingManager::ParseRouteString(const std::string &route,
+				      NTV2XptConnections &cnx)
 {
-	blog(LOG_DEBUG, "aja::Routing::ParseRouteString: Input string: %s",
+	blog(LOG_DEBUG,
+	     "aja::RoutingManager::ParseRouteString: Input string: %s",
 	     route.c_str());
 
 	std::string route_strip(route);
@@ -29,7 +171,7 @@ bool Routing::ParseRouteString(const std::string &route,
 
 	if (route_strip.empty()) {
 		blog(LOG_DEBUG,
-		     "Routing::ParseRouteString: input string is empty!");
+		     "RoutingManager::ParseRouteString: input string is empty!");
 		return false;
 	}
 
@@ -47,17 +189,18 @@ bool Routing::ParseRouteString(const std::string &route,
 	for (const auto &l : lines) {
 		if (l.empty()) {
 			blog(LOG_DEBUG,
-			     "aja::Routing::ParseRouteString: Empty line!");
+			     "aja::RoutingManager::ParseRouteString: Empty line!");
 			continue;
 		}
 
-		blog(LOG_DEBUG, "aja::Routing::ParseRouteString: Line: %s",
+		blog(LOG_DEBUG,
+		     "aja::RoutingManager::ParseRouteString: Line: %s",
 		     l.c_str());
 
 		NTV2StringList tokens = aja::split(l, "->");
 		if (tokens.empty() || tokens.size() != 2) {
 			blog(LOG_DEBUG,
-			     "aja::Routing::ParseRouteString: Invalid token count!");
+			     "aja::RoutingManager::ParseRouteString: Invalid token count!");
 			continue;
 		}
 
@@ -65,17 +208,17 @@ bool Routing::ParseRouteString(const std::string &route,
 		const std::string &right = tokens[1]; // input crosspoint
 		if (left.empty() || left.length() > 64) {
 			blog(LOG_DEBUG,
-			     "aja::Routing::ParseRouteString: Invalid Left token!");
+			     "aja::RoutingManager::ParseRouteString: Invalid Left token!");
 			continue;
 		}
 		if (right.empty() || right.length() > 64) {
 			blog(LOG_DEBUG,
-			     "aja::Routing::ParseRouteString: Invalid right token!");
+			     "aja::RoutingManager::ParseRouteString: Invalid right token!");
 			continue;
 		}
 
 		blog(LOG_DEBUG,
-		     "aja::Routing::ParseRouteString: Left Token: %s -> Right Token: %s",
+		     "aja::RoutingManager::ParseRouteString: Left Token: %s -> Right Token: %s",
 		     left.c_str(), right.c_str());
 
 		// Parse Output Crosspoint from left token
@@ -92,7 +235,7 @@ bool Routing::ParseRouteString(const std::string &route,
 						     (NTV2Channel)out_chan,
 						     out_ds, widget_out)) {
 				blog(LOG_DEBUG,
-				     "aja::Routing::ParseRouteString: Found NTV2OutputCrosspointID %s",
+				     "aja::RoutingManager::ParseRouteString: Found NTV2OutputCrosspointID %s",
 				     NTV2OutputCrosspointIDToString(
 					     widget_out.id)
 					     .c_str());
@@ -115,7 +258,7 @@ bool Routing::ParseRouteString(const std::string &route,
 						    (NTV2Channel)inp_chan,
 						    inp_ds, widget_inp)) {
 						blog(LOG_DEBUG,
-						     "aja::Routing::ParseRouteString: Found NTV2InputCrosspointID %s",
+						     "aja::RoutingManager::ParseRouteString: Found NTV2InputCrosspointID %s",
 						     NTV2InputCrosspointIDToString(
 							     widget_inp.id)
 							     .c_str());
@@ -125,12 +268,12 @@ bool Routing::ParseRouteString(const std::string &route,
 						parse_ok++;
 					} else {
 						blog(LOG_DEBUG,
-						     "aja::Routing::ParseRouteString: NTV2InputCrosspointID not found!");
+						     "aja::RoutingManager::ParseRouteString: NTV2InputCrosspointID not found!");
 					}
 				}
 			} else {
 				blog(LOG_DEBUG,
-				     "aja::Routing::ParseRouteString: NTV2OutputCrosspointID not found!");
+				     "aja::RoutingManager::ParseRouteString: NTV2OutputCrosspointID not found!");
 			}
 		}
 	}
@@ -138,14 +281,424 @@ bool Routing::ParseRouteString(const std::string &route,
 	return parse_ok > 0;
 }
 
-void Routing::StartSourceAudio(const SourceProps &props, CNTV2Card *card)
+bool RoutingManager::FindPreset(const IOConfig &ioConf, RoutingPreset &rp)
+{
+	return FindFirstPreset(ioConf.ConnectKind(), ioConf.DeviceID(),
+			       ioConf.Mode(), ioConf.VideoFormat(),
+			       ioConf.PixelFormat(), ioConf.VpidStandard(),
+			       ioConf.HdmiWireFormat(), rp);
+}
+
+bool RoutingManager::ConfigureRouting(const IOConfig &ioConf,
+				      const RoutingPreset &rp, CNTV2Card *card,
+				      NTV2XptConnections &cnx)
+{
+	if (!card) {
+		return false;
+	}
+
+	LogRoutingPreset(rp);
+
+	if (!rp.ToConnections(cnx, ioConf.FirstChannel(),
+			      ioConf.FirstFramestore())) {
+		return false;
+	}
+	CNTV2SignalRouter sr;
+	if (!sr.ResetFrom(cnx)) {
+		return false;
+	}
+	if (!card->ApplySignalRoute(sr, false)) {
+		return false;
+	}
+
+	bool isCapture = ioConf.Mode() == NTV2_MODE_CAPTURE;
+	bool isRGB = NTV2_IS_FBF_RGB(ioConf.PixelFormat());
+	NTV2ChannelList doneChans;
+	WidgetChannelMap wcMap;
+	rp.ToWidgetChannelMap(wcMap, ioConf.FirstChannel(),
+			      ioConf.FirstFramestore());
+	for (auto &e : wcMap) {
+		for (auto &channel : e.second) {
+			card->SetRegisterWriteMode(NTV2_REGWRITE_SYNCTOFRAME,
+						   channel);
+			if (e.first == kFramebufferNickname) {
+				// Framestore settings
+				card->EnableChannel(channel);
+				card->SetMode(channel, ioConf.Mode());
+				card->SetVANCMode(NTV2_VANCMODE_OFF, channel);
+				card->SetVideoFormat(ioConf.VideoFormat(),
+						     false, false, channel);
+				card->SetFrameBufferFormat(
+					channel, ioConf.PixelFormat());
+				card->SetTsiFrameEnable(rp.flags & kEnable4KTSI,
+							channel);
+				card->Set4kSquaresEnable(
+					rp.flags & kEnable4KSquares, channel);
+				card->SetQuadQuadSquaresEnable(
+					rp.flags & kEnable8KSquares, channel);
+			}
+			if (e.first == kSDINickname) {
+				// SDI settings
+				// See CardEntry note about Kona5 & io4K+ 6G/12G-SDI
+				if ((rp.IsKona5Io4KPlus6G12GCapture() &&
+				     channel != NTV2_CHANNEL1) ||
+				    (rp.IsKona5Io4KPlus6G12GOutput() &&
+				     channel != NTV2_CHANNEL3)) {
+					continue;
+				}
+				if (::NTV2DeviceHasBiDirectionalSDI(
+					    card->GetDeviceID())) {
+					card->SetSDITransmitEnable(channel,
+								   !isCapture);
+				}
+				UWord channelIndex = static_cast<UWord>(
+					GetIndexForNTV2Channel(channel));
+				if (isCapture) {
+					card->SetSDIInLevelBtoLevelAConversion(
+						channelIndex,
+						rp.flags & kConvert3GIn);
+				} else {
+					card->SetSDIOut3GEnable(
+						channel,
+						rp.flags & kEnable3GOut);
+					card->SetSDIOut3GbEnable(
+						channel,
+						rp.flags & kEnable3GbOut);
+					card->SetSDIOut6GEnable(
+						channel,
+						rp.flags & kEnable6GOut);
+					card->SetSDIOut12GEnable(
+						channel,
+						rp.flags & kEnable12GOut);
+					card->SetSDIOutLevelAtoLevelBConversion(
+						channelIndex,
+						rp.flags & kConvert3GOut);
+					card->SetSDIOutRGBLevelAConversion(
+						channelIndex,
+						rp.flags & kConvert3GaRGBOut);
+				}
+			} else if (e.first == kHDMINickname) {
+				// HDMI settings
+				card->SetHDMIOutColorSpace(
+					isRGB ? NTV2_HDMIColorSpaceRGB
+					      : NTV2_HDMIColorSpaceYCbCr);
+				card->SetHDMIOutBitDepth(
+					NTV2_IS_FBF_10BIT(ioConf.PixelFormat())
+						? NTV2_HDMI10Bit
+						: NTV2_HDMI8Bit);
+				card->SetHDMIOutSampleStructure(
+					isRGB ? NTV2_HDMI_RGB : NTV2_HDMI_422);
+				card->SetHDMIOutProtocol(NTV2_HDMIProtocolHDMI);
+				card->SetHDMIV2Mode(
+					NTV2_IS_4K_VIDEO_FORMAT(
+						ioConf.VideoFormat())
+						? (isCapture
+							   ? NTV2_HDMI_V2_4K_CAPTURE
+							   : NTV2_HDMI_V2_4K_PLAYBACK)
+						: NTV2_HDMI_V2_HDSD_BIDIRECTIONAL);
+			}
+		}
+	}
+
+	return true;
+}
+
+// bool RoutingManager::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
+// 				   CNTV2Card *card, NTV2XptConnections &cnx)
+// {
+// 	if (!card)
+// 		return false;
+
+// 	auto deviceID = props.deviceID;
+// 	NTV2VideoFormat vf = props.videoFormat;
+// 	auto init_src = props.InitialInputSource();
+// 	auto init_channel = props.Channel();
+
+// 	RoutingPreset rp;
+// 	ConnectionKind kind = ConnectionKind::Unknown;
+// 	VPIDStandard vpidStandard = VPIDStandard_Unknown;
+// 	HDMIWireFormat hwf = HDMIWireFormat::Unknown;
+// 	if (NTV2_INPUT_SOURCE_IS_SDI(init_src)) {
+// 		kind = ConnectionKind::SDI;
+// 		if (props.autoDetect) {
+// 			auto vpidList = props.vpids;
+// 			if (vpidList.size() > 0)
+// 				vpidStandard = vpidList.at(0).Standard();
+// 		}
+// 		if (vpidStandard == VPIDStandard_Unknown) {
+// 			vpidStandard = DetermineVPIDStandard(
+// 				props.ioSelect, props.videoFormat,
+// 				props.pixelFormat, props.sdiTransport,
+// 				props.sdi4kTransport);
+// 		}
+// 	} else if (NTV2_INPUT_SOURCE_IS_HDMI(init_src)) {
+// 		kind = ConnectionKind::HDMI;
+// 		if (NTV2_IS_FBF_RGB(props.pixelFormat)) {
+// 			if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
+// 				hwf = HDMIWireFormat::SD_HD_RGB;
+// 			} else if (NTV2_IS_4K_VIDEO_FORMAT(vf)) {
+// 				hwf = HDMIWireFormat::UHD_4K_RGB;
+// 			}
+// 		} else {
+// 			if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
+// 				hwf = HDMIWireFormat::SD_HD_YCBCR;
+// 			} else if (NTV2_IS_4K_VIDEO_FORMAT(vf)) {
+// 				hwf = HDMIWireFormat::UHD_4K_YCBCR;
+// 			}
+// 		}
+// 	} else {
+// 		blog(LOG_WARNING,
+// 		     "Unsupported connection kind. SDI and HDMI only!");
+// 		return false;
+// 	}
+
+// 	if (!FindFirstPreset(kind, props.deviceID, NTV2_MODE_CAPTURE, vf,
+// 				props.pixelFormat, vpidStandard, hwf, rp)) {
+// 		blog(LOG_WARNING, "No SDI capture routing preset found!");
+// 		return false;
+// 	}
+
+// 	LogRoutingPreset(rp);
+
+// 	// Substitute channel placeholders for actual indices
+// 	std::string route_string = rp.route_string;
+
+// 	// Channel-substitution for widgets associated with framestore channel(s)
+// 	ULWord start_framestore_index =
+// 		GetIndexForNTV2Channel(props.Framestore());
+// 	const std::vector<std::string> fs_associated = {kFramebufferNickname, kTSIMuxNickname, kDualLinkInNickname};
+// 	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
+// 		for (const auto &name : fs_associated) {
+// 			std::string placeholder = std::string(
+// 				name + "[{ch" + aja::to_string(c + 1) + "}]");
+// 			aja::replace(
+// 				route_string, placeholder,
+// 				name + "[" +
+// 					aja::to_string(start_framestore_index) +
+// 					"]");
+// 		}
+// 		start_framestore_index++;
+// 	}
+
+// 	// Replace other channel placeholders
+// 	ULWord start_channel_index = GetIndexForNTV2Channel(init_channel);
+// 	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
+// 		std::string channel_placeholder =
+// 			std::string("{ch" + aja::to_string(c + 1) + "}");
+// 		aja::replace(route_string, channel_placeholder,
+// 			     aja::to_string(start_channel_index++));
+// 	}
+
+// 	if (!ParseRouteString(route_string, cnx))
+// 		return false;
+
+// 	card->ApplySignalRoute(cnx, false);
+
+// 	// Apply SDI widget settings
+// 	start_channel_index = GetIndexForNTV2Channel(init_channel);
+// 	for (uint32_t i = (uint32_t)start_channel_index;
+// 	     i < (start_channel_index + rp.num_channels); i++) {
+// 		NTV2Channel channel = GetNTV2ChannelForIndex(i);
+// 		if (::NTV2DeviceHasBiDirectionalSDI(deviceID)) {
+// 			card->SetSDITransmitEnable(channel,
+// 						   mode == NTV2_MODE_DISPLAY);
+// 		}
+// 		card->SetSDIOut3GEnable(channel, rp.flags & kEnable3GOut);
+// 		card->SetSDIOut3GbEnable(channel, rp.flags & kEnable3GbOut);
+// 		card->SetSDIOut6GEnable(channel, rp.flags & kEnable6GOut);
+// 		card->SetSDIOut12GEnable(channel, rp.flags & kEnable12GOut);
+// 		card->SetSDIInLevelBtoLevelAConversion((UWord)i,
+// 						       rp.flags & kConvert3GIn);
+// 		card->SetSDIOutLevelAtoLevelBConversion(
+// 			(UWord)i, rp.flags & kConvert3GOut);
+// 		card->SetSDIOutRGBLevelAConversion(
+// 			(UWord)i, rp.flags & kConvert3GaRGBOut);
+// 	}
+
+// 	// Apply HDMI settings
+// 	if (aja::IsIOSelectionHDMI(props.ioSelect)) {
+// 		if (NTV2_IS_4K_VIDEO_FORMAT(props.videoFormat))
+// 			card->SetHDMIV2Mode(NTV2_HDMI_V2_4K_CAPTURE);
+// 		else
+// 			card->SetHDMIV2Mode(NTV2_HDMI_V2_HDSD_BIDIRECTIONAL);
+// 	}
+
+// 	// Apply Framestore settings
+// 	start_framestore_index = GetIndexForNTV2Channel(props.Framestore());
+// 	for (uint32_t i = (uint32_t)start_framestore_index;
+// 	     i < (start_framestore_index + rp.num_framestores); i++) {
+// 		NTV2Channel channel = GetNTV2ChannelForIndex(i);
+// 		card->EnableChannel(channel);
+// 		card->SetMode(channel, mode);
+// 		card->SetVANCMode(NTV2_VANCMODE_OFF, channel);
+// 		card->SetVideoFormat(vf, false, false, channel);
+// 		card->SetFrameBufferFormat(channel, props.pixelFormat);
+// 		card->SetTsiFrameEnable(rp.flags & kEnable4KTSI, channel);
+// 		card->Set4kSquaresEnable(rp.flags & kEnable4KSquares, channel);
+// 		card->SetQuadQuadSquaresEnable(rp.flags & kEnable8KSquares,
+// 					       channel);
+// 	}
+
+// 	return true;
+// }
+
+// bool RoutingManager::ConfigureOutputRoute(const IOConfig &ioConf, NTV2Mode mode,
+// 				   CNTV2Card *card, NTV2XptConnections &cnx)
+// {
+// 	if (!card)
+// 		return false;
+
+// 	NTV2DeviceID deviceID = card->GetDeviceID();
+// 	NTV2OutputDestinations outputDests;
+// 	aja::IOSelectionToOutputDests(ioConf.IoSelection(), outputDests);
+// 	if (outputDests.empty()) {
+// 		blog(LOG_DEBUG,
+// 		     "No Output Destinations specified to configure routing!");
+// 		return false;
+// 	}
+// 	auto init_dest = *outputDests.begin();
+
+// 	RoutingPreset rp;
+// 	ConnectionKind kind = ConnectionKind::Unknown;
+// 	VPIDStandard vpidStandard = VPIDStandard_Unknown;
+// 	HDMIWireFormat hwf = HDMIWireFormat::Unknown;
+// 	if (NTV2_OUTPUT_DEST_IS_SDI(init_dest)) {
+// 		kind = ConnectionKind::SDI;
+// 		vpidStandard = DetermineVPIDStandard(
+// 			ioConf.IoSelection(), ioConf.VideoFormat(), ioConf.PixelFormat(),
+// 			ioConf.SdiTransport(), ioConf.SdiTransport4K());
+// 	} else if (NTV2_OUTPUT_DEST_IS_HDMI(init_dest)) {
+// 		kind = ConnectionKind::HDMI;
+// 		hwf = HDMIWireFormat::Unknown;
+// 		if (NTV2_IS_FBF_RGB(ioConf.PixelFormat())) {
+// 			if (NTV2_IS_HD_VIDEO_FORMAT(ioConf.VideoFormat())) {
+// 				hwf = HDMIWireFormat::SD_HD_RGB;
+// 			} else if (NTV2_IS_4K_VIDEO_FORMAT(ioConf.VideoFormat())) {
+// 				hwf = HDMIWireFormat::UHD_4K_RGB;
+// 			}
+// 		} else {
+// 			if (NTV2_IS_HD_VIDEO_FORMAT(ioConf.VideoFormat())) {
+// 				hwf = HDMIWireFormat::SD_HD_YCBCR;
+// 			} else if (NTV2_IS_4K_VIDEO_FORMAT(ioConf.VideoFormat())) {
+// 				hwf = HDMIWireFormat::UHD_4K_YCBCR;
+// 			}
+// 		}
+// 	} else {
+// 		blog(LOG_WARNING,
+// 		     "Unsupported connection kind. SDI and HDMI only!");
+// 		return false;
+// 	}
+
+// 	if (!FindFirstPreset(kind, deviceID, NTV2_MODE_DISPLAY,
+// 				ioConf.VideoFormat(), ioConf.PixelFormat(),
+// 				vpidStandard, hwf, rp)) {
+// 		blog(LOG_WARNING, "No HDMI output routing preset found!");
+// 		return false;
+// 	}
+
+// 	LogRoutingPreset(rp);
+
+// 	std::string route_string = rp.route_string;
+
+// 	// Replace framestore channel placeholders
+// 	auto init_channel = NTV2OutputDestinationToChannel(init_dest);
+// 	ULWord start_framestore_index =
+// 		GetIndexForNTV2Channel(ioConf.FirstFramestore());
+// 	if (rp.verbatim) {
+// 		// Presets marked "verbatim" must only be routed on the specified channels
+// 		start_framestore_index = 0;
+// 		init_channel = NTV2_CHANNEL1;
+// 	}
+
+// 	// Channel-substitution for widgets associated with framestore channel(s)
+// 	const std::vector<std::string> fs_associated = {kFramebufferNickname, kTSIMuxNickname, kDualLinkOutNickname};
+// 	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
+// 		for (const auto &name : fs_associated) {
+// 			std::string placeholder = std::string(
+// 				name + "[{ch" + aja::to_string(c + 1) + "}]");
+// 			aja::replace(
+// 				route_string, placeholder,
+// 				name + "[" +
+// 					aja::to_string(start_framestore_index) +
+// 					"]");
+// 		}
+// 		start_framestore_index++;
+// 	}
+
+// 	// Replace other channel placeholders
+// 	ULWord start_channel_index = GetIndexForNTV2Channel(init_channel);
+// 	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
+// 		std::string channel_placeholder =
+// 			std::string("{ch" + aja::to_string(c + 1) + "}");
+// 		aja::replace(route_string, channel_placeholder,
+// 			     aja::to_string(start_channel_index++));
+// 	}
+
+// 	if (!ParseRouteString(route_string, cnx))
+// 		return false;
+
+// 	CNTV2SignalRouter sr;
+// 	sr.ResetFrom(cnx);
+// 	card->ApplySignalRoute(sr, false);
+
+// 	// Apply SDI widget settings
+// 	if (ioConf.IoSelection() != IOSelection::HDMIMonitorOut ||
+// 	    deviceID == DEVICE_ID_TTAP_PRO) {
+// 		start_channel_index = GetIndexForNTV2Channel(init_channel);
+// 		for (uint32_t i = (uint32_t)start_channel_index;
+// 		     i < (start_channel_index + rp.num_channels); i++) {
+// 			NTV2Channel channel = GetNTV2ChannelForIndex(i);
+// 			if (::NTV2DeviceHasBiDirectionalSDI(deviceID)) {
+// 				card->SetSDITransmitEnable(
+// 					channel, mode == NTV2_MODE_DISPLAY);
+// 			}
+// 			card->SetSDIOut3GEnable(channel,
+// 						rp.flags & kEnable3GOut);
+// 			card->SetSDIOut3GbEnable(channel,
+// 						 rp.flags & kEnable3GbOut);
+// 			card->SetSDIOut6GEnable(channel,
+// 						rp.flags & kEnable6GOut);
+// 			card->SetSDIOut12GEnable(channel,
+// 						 rp.flags & kEnable12GOut);
+// 			card->SetSDIInLevelBtoLevelAConversion(
+// 				(UWord)i, rp.flags & kConvert3GIn);
+// 			card->SetSDIOutLevelAtoLevelBConversion(
+// 				(UWord)i, rp.flags & kConvert3GOut);
+// 			card->SetSDIOutRGBLevelAConversion(
+// 				(UWord)i, rp.flags & kConvert3GaRGBOut);
+// 		}
+// 	}
+
+// 	// Apply Framestore settings
+// 	start_framestore_index = GetIndexForNTV2Channel(ioConf.FirstFramestore());
+// 	if (rp.verbatim) {
+// 		start_framestore_index = 0;
+// 	}
+// 	for (uint32_t i = (uint32_t)start_framestore_index;
+// 	     i < (start_framestore_index + rp.num_framestores); i++) {
+// 		NTV2Channel channel = GetNTV2ChannelForIndex(i);
+// 		card->EnableChannel(channel);
+// 		card->SetMode(channel, mode);
+// 		card->SetVANCMode(NTV2_VANCMODE_OFF, channel);
+// 		card->SetVideoFormat(ioConf.VideoFormat(), false, false, channel);
+// 		card->SetFrameBufferFormat(channel, ioConf.PixelFormat());
+// 		card->SetTsiFrameEnable(rp.flags & kEnable4KTSI, channel);
+// 		card->Set4kSquaresEnable(rp.flags & kEnable4KSquares, channel);
+// 		card->SetQuadQuadSquaresEnable(rp.flags & kEnable8KSquares,
+// 					       channel);
+// 	}
+
+// 	return true;
+// }
+
+void RoutingManager::StartSourceAudio(const IOConfig &ioConf, CNTV2Card *card)
 {
 	if (!card)
 		return;
 
-	auto inputSrc = props.InitialInputSource();
-	auto channel = props.Channel();
-	auto audioSys = props.AudioSystem();
+	auto inputSrc = ioConf.FirstInputSource();
+	auto channel = ioConf.FirstChannel();
+	auto audioSys = ioConf.AudioSystem();
 
 	card->WriteAudioSource(0, channel);
 	card->SetAudioSystemInputSource(
@@ -153,7 +706,7 @@ void Routing::StartSourceAudio(const SourceProps &props, CNTV2Card *card)
 		NTV2InputSourceToEmbeddedAudioInput(inputSrc));
 
 	card->SetNumberAudioChannels(kDefaultAudioChannels, audioSys);
-	card->SetAudioRate(props.AudioRate(), audioSys);
+	card->SetAudioRate(ioConf.AudioRate(), audioSys);
 	card->SetAudioBufferSize(NTV2_AUDIO_BUFFER_BIG, audioSys);
 
 	// Fix for AJA NTV2 internal bug #11467
@@ -196,314 +749,27 @@ void Routing::StartSourceAudio(const SourceProps &props, CNTV2Card *card)
 	card->SetAudioCaptureEnable(audioSys, true);
 }
 
-void Routing::StopSourceAudio(const SourceProps &props, CNTV2Card *card)
+void RoutingManager::StopSourceAudio(const IOConfig &ioConf, CNTV2Card *card)
 {
 	if (card) {
-		auto audioSys = props.AudioSystem();
+		auto audioSys = ioConf.AudioSystem();
 		card->SetAudioCaptureEnable(audioSys, false);
 		card->StopAudioInput(audioSys);
 	}
 }
 
-bool Routing::ConfigureSourceRoute(const SourceProps &props, NTV2Mode mode,
-				   CNTV2Card *card, NTV2XptConnections &cnx)
-{
-	if (!card)
-		return false;
-
-	auto deviceID = props.deviceID;
-	NTV2VideoFormat vf = props.videoFormat;
-	auto init_src = props.InitialInputSource();
-	auto init_channel = props.Channel();
-
-	RoutingConfigurator rc;
-	RoutingPreset rp;
-	ConnectionKind kind = ConnectionKind::Unknown;
-	VPIDStandard vpidStandard = VPIDStandard_Unknown;
-	HDMIWireFormat hwf = HDMIWireFormat::Unknown;
-	if (NTV2_INPUT_SOURCE_IS_SDI(init_src)) {
-		kind = ConnectionKind::SDI;
-		if (props.autoDetect) {
-			auto vpidList = props.vpids;
-			if (vpidList.size() > 0)
-				vpidStandard = vpidList.at(0).Standard();
-		}
-		if (vpidStandard == VPIDStandard_Unknown) {
-			vpidStandard = DetermineVPIDStandard(
-				props.ioSelect, props.videoFormat,
-				props.pixelFormat, props.sdiTransport,
-				props.sdi4kTransport);
-		}
-	} else if (NTV2_INPUT_SOURCE_IS_HDMI(init_src)) {
-		kind = ConnectionKind::HDMI;
-		if (NTV2_IS_FBF_RGB(props.pixelFormat)) {
-			if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
-				hwf = HDMIWireFormat::SD_HD_RGB;
-			} else if (NTV2_IS_4K_VIDEO_FORMAT(vf)) {
-				hwf = HDMIWireFormat::UHD_4K_RGB;
-			}
-		} else {
-			if (NTV2_IS_HD_VIDEO_FORMAT(vf)) {
-				hwf = HDMIWireFormat::SD_HD_YCBCR;
-			} else if (NTV2_IS_4K_VIDEO_FORMAT(vf)) {
-				hwf = HDMIWireFormat::UHD_4K_YCBCR;
-			}
-		}
-	} else {
-		blog(LOG_WARNING,
-		     "Unsupported connection kind. SDI and HDMI only!");
-		return false;
-	}
-
-	if (!rc.FindFirstPreset(kind, props.deviceID, NTV2_MODE_CAPTURE, vf,
-				props.pixelFormat, vpidStandard, hwf, rp)) {
-		blog(LOG_WARNING, "No SDI capture routing preset found!");
-		return false;
-	}
-
-	LogRoutingPreset(rp);
-
-	// Substitute channel placeholders for actual indices
-	std::string route_string = rp.route_string;
-
-	// Channel-substitution for widgets associated with framestore channel(s)
-	ULWord start_framestore_index =
-		GetIndexForNTV2Channel(props.Framestore());
-	const std::vector<std::string> fs_associated = {"fb", "tsi", "dli"};
-	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
-		for (const auto &name : fs_associated) {
-			std::string placeholder = std::string(
-				name + "[{ch" + aja::to_string(c + 1) + "}]");
-			aja::replace(
-				route_string, placeholder,
-				name + "[" +
-					aja::to_string(start_framestore_index) +
-					"]");
-		}
-		start_framestore_index++;
-	}
-
-	// Replace other channel placeholders
-	ULWord start_channel_index = GetIndexForNTV2Channel(init_channel);
-	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
-		std::string channel_placeholder =
-			std::string("{ch" + aja::to_string(c + 1) + "}");
-		aja::replace(route_string, channel_placeholder,
-			     aja::to_string(start_channel_index++));
-	}
-
-	if (!ParseRouteString(route_string, cnx))
-		return false;
-
-	card->ApplySignalRoute(cnx, false);
-
-	// Apply SDI widget settings
-	start_channel_index = GetIndexForNTV2Channel(init_channel);
-	for (uint32_t i = (uint32_t)start_channel_index;
-	     i < (start_channel_index + rp.num_channels); i++) {
-		NTV2Channel channel = GetNTV2ChannelForIndex(i);
-		if (::NTV2DeviceHasBiDirectionalSDI(deviceID)) {
-			card->SetSDITransmitEnable(channel,
-						   mode == NTV2_MODE_DISPLAY);
-		}
-		card->SetSDIOut3GEnable(channel, rp.flags & kEnable3GOut);
-		card->SetSDIOut3GbEnable(channel, rp.flags & kEnable3GbOut);
-		card->SetSDIOut6GEnable(channel, rp.flags & kEnable6GOut);
-		card->SetSDIOut12GEnable(channel, rp.flags & kEnable12GOut);
-		card->SetSDIInLevelBtoLevelAConversion((UWord)i,
-						       rp.flags & kConvert3GIn);
-		card->SetSDIOutLevelAtoLevelBConversion(
-			(UWord)i, rp.flags & kConvert3GOut);
-		card->SetSDIOutRGBLevelAConversion(
-			(UWord)i, rp.flags & kConvert3GaRGBOut);
-	}
-
-	// Apply HDMI settings
-	if (aja::IsIOSelectionHDMI(props.ioSelect)) {
-		if (NTV2_IS_4K_VIDEO_FORMAT(props.videoFormat))
-			card->SetHDMIV2Mode(NTV2_HDMI_V2_4K_CAPTURE);
-		else
-			card->SetHDMIV2Mode(NTV2_HDMI_V2_HDSD_BIDIRECTIONAL);
-	}
-
-	// Apply Framestore settings
-	start_framestore_index = GetIndexForNTV2Channel(props.Framestore());
-	for (uint32_t i = (uint32_t)start_framestore_index;
-	     i < (start_framestore_index + rp.num_framestores); i++) {
-		NTV2Channel channel = GetNTV2ChannelForIndex(i);
-		card->EnableChannel(channel);
-		card->SetMode(channel, mode);
-		card->SetVANCMode(NTV2_VANCMODE_OFF, channel);
-		card->SetVideoFormat(vf, false, false, channel);
-		card->SetFrameBufferFormat(channel, props.pixelFormat);
-		card->SetTsiFrameEnable(rp.flags & kEnable4KTSI, channel);
-		card->Set4kSquaresEnable(rp.flags & kEnable4KSquares, channel);
-		card->SetQuadQuadSquaresEnable(rp.flags & kEnable8KSquares,
-					       channel);
-	}
-
-	return true;
-}
-
-bool Routing::ConfigureOutputRoute(const OutputProps &props, NTV2Mode mode,
-				   CNTV2Card *card, NTV2XptConnections &cnx)
-{
-	if (!card)
-		return false;
-
-	auto deviceID = props.deviceID;
-	NTV2OutputDestinations outputDests;
-	aja::IOSelectionToOutputDests(props.ioSelect, outputDests);
-	if (outputDests.empty()) {
-		blog(LOG_DEBUG,
-		     "No Output Destinations specified to configure routing!");
-		return false;
-	}
-	auto init_dest = *outputDests.begin();
-
-	RoutingConfigurator rc;
-	RoutingPreset rp;
-	ConnectionKind kind = ConnectionKind::Unknown;
-	VPIDStandard vpidStandard = VPIDStandard_Unknown;
-	HDMIWireFormat hwf = HDMIWireFormat::Unknown;
-	if (NTV2_OUTPUT_DEST_IS_SDI(init_dest)) {
-		kind = ConnectionKind::SDI;
-		vpidStandard = DetermineVPIDStandard(
-			props.ioSelect, props.videoFormat, props.pixelFormat,
-			props.sdiTransport, props.sdi4kTransport);
-	} else if (NTV2_OUTPUT_DEST_IS_HDMI(init_dest)) {
-		kind = ConnectionKind::HDMI;
-		hwf = HDMIWireFormat::Unknown;
-		if (NTV2_IS_FBF_RGB(props.pixelFormat)) {
-			if (NTV2_IS_HD_VIDEO_FORMAT(props.videoFormat)) {
-				hwf = HDMIWireFormat::SD_HD_RGB;
-			} else if (NTV2_IS_4K_VIDEO_FORMAT(props.videoFormat)) {
-				hwf = HDMIWireFormat::UHD_4K_RGB;
-			}
-		} else {
-			if (NTV2_IS_HD_VIDEO_FORMAT(props.videoFormat)) {
-				hwf = HDMIWireFormat::SD_HD_YCBCR;
-			} else if (NTV2_IS_4K_VIDEO_FORMAT(props.videoFormat)) {
-				hwf = HDMIWireFormat::UHD_4K_YCBCR;
-			}
-		}
-	} else {
-		blog(LOG_WARNING,
-		     "Unsupported connection kind. SDI and HDMI only!");
-		return false;
-	}
-
-	if (!rc.FindFirstPreset(kind, props.deviceID, NTV2_MODE_DISPLAY,
-				props.videoFormat, props.pixelFormat,
-				vpidStandard, hwf, rp)) {
-		blog(LOG_WARNING, "No HDMI output routing preset found!");
-		return false;
-	}
-
-	LogRoutingPreset(rp);
-
-	std::string route_string = rp.route_string;
-
-	// Replace framestore channel placeholders
-	auto init_channel = NTV2OutputDestinationToChannel(init_dest);
-	ULWord start_framestore_index =
-		GetIndexForNTV2Channel(props.Framestore());
-	if (rp.verbatim) {
-		// Presets marked "verbatim" must only be routed on the specified channels
-		start_framestore_index = 0;
-		init_channel = NTV2_CHANNEL1;
-	}
-
-	// Channel-substitution for widgets associated with framestore channel(s)
-	const std::vector<std::string> fs_associated = {"fb", "tsi", "dlo"};
-	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
-		for (const auto &name : fs_associated) {
-			std::string placeholder = std::string(
-				name + "[{ch" + aja::to_string(c + 1) + "}]");
-			aja::replace(
-				route_string, placeholder,
-				name + "[" +
-					aja::to_string(start_framestore_index) +
-					"]");
-		}
-		start_framestore_index++;
-	}
-
-	// Replace other channel placeholders
-	ULWord start_channel_index = GetIndexForNTV2Channel(init_channel);
-	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
-		std::string channel_placeholder =
-			std::string("{ch" + aja::to_string(c + 1) + "}");
-		aja::replace(route_string, channel_placeholder,
-			     aja::to_string(start_channel_index++));
-	}
-
-	if (!ParseRouteString(route_string, cnx))
-		return false;
-
-	card->ApplySignalRoute(cnx, false);
-
-	// Apply SDI widget settings
-	if (props.ioSelect != IOSelection::HDMIMonitorOut ||
-	    props.deviceID == DEVICE_ID_TTAP_PRO) {
-		start_channel_index = GetIndexForNTV2Channel(init_channel);
-		for (uint32_t i = (uint32_t)start_channel_index;
-		     i < (start_channel_index + rp.num_channels); i++) {
-			NTV2Channel channel = GetNTV2ChannelForIndex(i);
-			if (::NTV2DeviceHasBiDirectionalSDI(deviceID)) {
-				card->SetSDITransmitEnable(
-					channel, mode == NTV2_MODE_DISPLAY);
-			}
-			card->SetSDIOut3GEnable(channel,
-						rp.flags & kEnable3GOut);
-			card->SetSDIOut3GbEnable(channel,
-						 rp.flags & kEnable3GbOut);
-			card->SetSDIOut6GEnable(channel,
-						rp.flags & kEnable6GOut);
-			card->SetSDIOut12GEnable(channel,
-						 rp.flags & kEnable12GOut);
-			card->SetSDIInLevelBtoLevelAConversion(
-				(UWord)i, rp.flags & kConvert3GIn);
-			card->SetSDIOutLevelAtoLevelBConversion(
-				(UWord)i, rp.flags & kConvert3GOut);
-			card->SetSDIOutRGBLevelAConversion(
-				(UWord)i, rp.flags & kConvert3GaRGBOut);
-		}
-	}
-
-	// Apply Framestore settings
-	start_framestore_index = GetIndexForNTV2Channel(props.Framestore());
-	if (rp.verbatim) {
-		start_framestore_index = 0;
-	}
-	for (uint32_t i = (uint32_t)start_framestore_index;
-	     i < (start_framestore_index + rp.num_framestores); i++) {
-		NTV2Channel channel = GetNTV2ChannelForIndex(i);
-		card->EnableChannel(channel);
-		card->SetMode(channel, mode);
-		card->SetVANCMode(NTV2_VANCMODE_OFF, channel);
-		card->SetVideoFormat(props.videoFormat, false, false, channel);
-		card->SetFrameBufferFormat(channel, props.pixelFormat);
-		card->SetTsiFrameEnable(rp.flags & kEnable4KTSI, channel);
-		card->Set4kSquaresEnable(rp.flags & kEnable4KSquares, channel);
-		card->SetQuadQuadSquaresEnable(rp.flags & kEnable8KSquares,
-					       channel);
-	}
-
-	return true;
-}
-
-void Routing::ConfigureOutputAudio(const OutputProps &props, CNTV2Card *card)
+void RoutingManager::ConfigureOutputAudio(const IOConfig &ioConf,
+					  CNTV2Card *card)
 {
 	if (!card)
 		return;
 
 	auto deviceID = card->GetDeviceID();
-	auto audioSys = props.AudioSystem();
-	auto channel = props.Channel();
+	auto audioSys = ioConf.AudioSystem();
+	auto channel = ioConf.FirstChannel();
 
-	card->SetNumberAudioChannels(props.audioNumChannels, audioSys);
-	card->SetAudioRate(props.AudioRate(), audioSys);
+	card->SetNumberAudioChannels(ioConf.AudioNumChannels(), audioSys);
+	card->SetAudioRate(ioConf.AudioRate(), audioSys);
 	card->SetAudioBufferSize(NTV2_AUDIO_BUFFER_BIG, audioSys);
 	card->SetAudioOutputDelay(audioSys, 0);
 
@@ -537,7 +803,7 @@ void Routing::ConfigureOutputAudio(const OutputProps &props, CNTV2Card *card)
 		card->SetSDIOutputDS2AudioSystem(NTV2_CHANNEL5, audioSys);
 	}
 
-	card->SetHDMIOutAudioRate(props.AudioRate());
+	card->SetHDMIOutAudioRate(ioConf.AudioRate());
 	card->SetHDMIOutAudioFormat(NTV2_AUDIO_FORMAT_LPCM);
 
 	card->SetAudioOutputMonitorSource(NTV2_AudioChannel1_2, channel);
@@ -573,11 +839,10 @@ void Routing::ConfigureOutputAudio(const OutputProps &props, CNTV2Card *card)
 	}
 
 	card->SetAudioLoopBack(NTV2_AUDIO_LOOPBACK_OFF, audioSys);
-
 	card->StopAudioOutput(audioSys);
 }
 
-void Routing::LogRoutingPreset(const RoutingPreset &rp)
+void RoutingManager::LogRoutingPreset(const RoutingPreset &rp)
 {
 	auto hexStr = [&](uint8_t val) -> std::string {
 		std::stringstream ss;
@@ -587,10 +852,21 @@ void Routing::LogRoutingPreset(const RoutingPreset &rp)
 	};
 
 	std::stringstream ss;
-	ss << "\nPreset: " << rp.name;
+	ss << "\nPreset: " << RoutingPresetIDString(rp.id);
 	if (rp.kind == ConnectionKind::SDI) {
-		ss << "\nVPID Standard: 0x"
-		   << hexStr(static_cast<uint8_t>(rp.vpid_standard));
+		std::stringstream vpidSS;
+		bool vpidOk = false;
+		for (const auto &v : rp.vpid_standards) {
+			if (v != VPIDStandard_Unknown) {
+				vpidSS << "0x"
+				       << hexStr(static_cast<uint8_t>(v))
+				       << ' ';
+				vpidOk = true;
+			}
+		}
+		if (vpidOk) {
+			ss << "\nSupported VPID Standards: " << vpidSS.str();
+		}
 	}
 	ss << "\nMode: " << NTV2ModeToString(rp.mode)
 	   << "\nChannels: " << rp.num_channels
@@ -605,6 +881,113 @@ void Routing::LogRoutingPreset(const RoutingPreset &rp)
 		}
 		blog(LOG_INFO, "\nCompatible Device IDs: \n%s",
 		     ss.str().c_str());
+	}
+}
+
+void RoutingManager::AddPreset(RoutingPresetID id, const RoutingPreset &preset)
+{
+	if (mPresetMap.find(id) != mPresetMap.end())
+		return;
+	mPresetMap.insert(RoutingPresetPair{id, preset});
+}
+
+bool RoutingManager::PresetByName(RoutingPresetID id,
+				  RoutingPreset &preset) const
+{
+	if (mPresetMap.find(id) != mPresetMap.end()) {
+		preset = mPresetMap.at(id);
+		return true;
+	}
+	return false;
+}
+
+bool RoutingManager::FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
+				     NTV2Mode mode, NTV2VideoFormat vf,
+				     NTV2PixelFormat pf, VPIDStandard standard,
+				     HDMIWireFormat hwf, RoutingPreset &preset)
+{
+	if (NTV2DeviceCanDoVideoFormat(id, vf) &&
+	    NTV2DeviceCanDoFrameBufferFormat(id, pf)) {
+		const auto &rd = DetermineRasterDefinition(vf);
+		bool is_rgb = NTV2_IS_FBF_RGB(pf);
+		std::vector<RoutingPresetPair> query;
+		for (const auto &p : mPresetMap) {
+			if (is_rgb && !p.second.rgb_ok) {
+				continue;
+			}
+			if (p.second.kind == kind && p.second.mode == mode &&
+			    aja::vec_contains(p.second.raster_defs, rd) &&
+			    aja::vec_contains(p.second.vpid_standards,
+					      standard)) {
+				query.push_back(p);
+			}
+		}
+		std::vector<RoutingPresetPair> final_query;
+		if (query.size() > 1) {
+			// Filter out RGB presets if we want YCbCr.
+			// If a preset supports RGB and YC, there should be only 1 match.
+			// If we want YC but the match list has RGB and YC presets, get rid
+			// of the RGB presets.
+			for (auto &&q : query) {
+				if (!is_rgb && q.second.rgb_ok) {
+					continue;
+				} else {
+					final_query.emplace_back(std::move(q));
+				}
+			}
+		} else {
+			for (auto &&q : query) {
+				final_query.emplace_back(std::move(q));
+			}
+		}
+
+		RoutingPresets device_presets;
+		RoutingPresets non_device_presets;
+		for (auto &&q : final_query) {
+			if (q.second.device_ids.size() == 0) {
+				non_device_presets.emplace_back(
+					std::move(q.second));
+			}
+			for (const auto &device_id : q.second.device_ids) {
+				if (device_id == id) {
+					device_presets.emplace_back(
+						std::move(q.second));
+					break;
+				}
+			}
+		}
+
+		if (device_presets.size() > 0) {
+			preset = device_presets.at(0);
+			return true;
+		}
+		if (non_device_presets.size() > 0) {
+			preset = non_device_presets.at(0);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void RoutingManager::cache_connections(const NTV2XptConnections &cnx)
+{
+	mXptCache = cnx;
+}
+void RoutingManager::clear_cached_connections()
+{
+	mXptCache.clear();
+}
+void RoutingManager::apply_cached_connections(CNTV2Card *card)
+{
+	for (const auto &xpt : mXptCache) {
+		card->Connect(xpt.first, xpt.second);
+	}
+}
+void RoutingManager::remove_cached_connections(CNTV2Card *card)
+{
+	for (const auto &xpt : mXptCache) {
+		card->Connect(xpt.first, NTV2_XptBlack);
 	}
 }
 

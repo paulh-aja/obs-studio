@@ -1,6 +1,7 @@
 #pragma once
 
 #include "aja-props.hpp"
+#include "aja-routing.hpp"
 #include "audio-repack.hpp"
 
 #include <obs-module.h>
@@ -45,22 +46,26 @@ public:
 	uint32_t DeviceIndex() const;
 	void SetDeviceIndex(uint32_t index);
 
-	// Source Props
-	void SetSourceProps(const SourceProps &props);
-	SourceProps GetSourceProps() const;
-
 	void CacheConnections(const NTV2XptConnections &cnx);
 	void ClearConnections();
 
+	void SetIoConfig(const IOConfig &ioConf);
+	IOConfig &GetIoConfig();
+
 	bool ReadChannelVPIDs(NTV2Channel channel, VPIDData &vpids);
 
-	bool ReadWireFormats(NTV2DeviceID device_id, IOSelection io_select,
+	bool ReadWireFormats(NTV2DeviceID deviceID, IOSelection ioSelect,
 			     NTV2VideoFormat &vf, NTV2PixelFormat &pf,
 			     VPIDDataList &vpids);
 
 	void ResetVideoBuffer(NTV2VideoFormat vf, NTV2PixelFormat pf);
 
 	void ResetAudioBuffer(size_t size);
+
+	void SetDeactivateWhileNotShowing(bool enable = false);
+	void SetSwapFrontCenterLFE(bool enable = false);
+	bool DeactivateWhileNotShowing() const;
+	bool SwapFrontCenterLFE() const;
 
 	NTV2_POINTER mVideoBuffer;
 	NTV2_POINTER mAudioBuffer;
@@ -74,8 +79,10 @@ private:
 
 	bool mBuffering;
 	bool mIsCapturing;
+	bool mDeactiveWhileNotShowing;
+	bool mSwapFrontCenterLFE;
 
-	SourceProps mSourceProps;
+	IOConfig mIoConfig;
 
 	NTV2TestPatternBuffer mTestPattern;
 
