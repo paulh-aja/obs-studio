@@ -167,13 +167,6 @@ public:
 	bool ConfigureRouting(const IOConfig &ioConf, const RoutingPreset &rp,
 			      CNTV2Card *card, NTV2XptConnections &cnx);
 
-	// bool ConfigureSourceRoute(const SourceProps &props,
-	// 				 NTV2Mode mode, CNTV2Card *card,
-	// 				 NTV2XptConnections &cnx);
-	// bool ConfigureOutputRoute(const IOConfig &ioConf,
-	// 				 NTV2Mode mode, CNTV2Card *card,
-	// 				 NTV2XptConnections &cnx);
-
 	static void StartSourceAudio(const IOConfig &ioConf, CNTV2Card *card);
 	static void StopSourceAudio(const IOConfig &ioConf, CNTV2Card *card);
 	static void ConfigureOutputAudio(const IOConfig &ioConf,

@@ -1167,54 +1167,6 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 		goto fail;
 	}
 
-	// OutputProps outputProps(deviceID);
-	// outputProps.ioSelect = static_cast<IOSelection>(
-	// 	obs_data_get_int(settings, kUIPropOutput.id));
-	// outputProps.videoFormat = static_cast<NTV2VideoFormat>(
-	// 	obs_data_get_int(settings, kUIPropVideoFormatSelect.id));
-	// outputProps.pixelFormat = static_cast<NTV2PixelFormat>(
-	// 	obs_data_get_int(settings, kUIPropPixelFormatSelect.id));
-	// outputProps.sdiTransport = static_cast<SDITransport>(
-	// 	obs_data_get_int(settings, kUIPropSDITransport.id));
-	// outputProps.sdi4kTransport = static_cast<SDITransport4K>(
-	// 	obs_data_get_int(settings, kUIPropSDITransport4K.id));
-	// outputProps.audioNumChannels = kDefaultAudioChannels;
-	// outputProps.audioSampleSize = kDefaultAudioSampleSize;
-	// outputProps.audioSampleRate = kDefaultAudioSampleRate;
-
-	// if (outputProps.ioSelect == IOSelection::Invalid) {
-	// 	blog(LOG_DEBUG,
-	// 	     "aja_output_create: Select a valid AJA Output IOSelection!");
-	// 	return nullptr;
-	// }
-	// if (outputProps.videoFormat == NTV2_FORMAT_UNKNOWN ||
-	//     outputProps.pixelFormat == NTV2_FBF_INVALID) {
-	// 	blog(LOG_ERROR,
-	// 	     "aja_output_create: Select a valid video and/or pixel format!");
-	// 	return nullptr;
-	// }
-
-	// const std::string &ioSelectStr =
-	// 	aja::IOSelectionToString(outputProps.ioSelect);
-
-	// NTV2OutputDestinations outputDests;
-	// aja::IOSelectionToOutputDests(outputProps.ioSelect, outputDests);
-	// if (outputDests.empty()) {
-	// 	blog(LOG_ERROR,
-	// 	     "No Output Destinations found for IOSelection %s!",
-	// 	     ioSelectStr.c_str());
-	// 	return nullptr;
-	// }
-	// outputProps.outputDest = *outputDests.begin();
-
-	// if (!cardEntry->AcquireOutputSelection(outputProps.ioSelect, deviceID,
-	// 				       outputID)) {
-	// 	blog(LOG_ERROR,
-	// 	     "aja_output_create: Error acquiring IOSelection %s for card ID %s",
-	// 	     ioSelectStr.c_str(), cardID);
-	// 	return nullptr;
-	// }
-
 	ajaOutput->Initialize(ioConf);
 
 	ajaOutput->ClearConnections();
@@ -1299,36 +1251,6 @@ static bool aja_output_start(void *data)
 	     NTV2AudioSystemToString(audioSystem, true).c_str(),
 	     NTV2VideoFormatToString(videoFormat, false).c_str(),
 	     NTV2FrameBufferFormatToString(pixelFormat, true).c_str());
-
-	const NTV2DeviceID deviceID = card->GetDeviceID();
-
-	// if (GetIndexForNTV2Channel(ioConf.FirstFramestore()) > 0) {
-	// 	auto numFramestores = aja::CardNumFramestores(deviceID);
-	// 	for (UWord i = 0; i < numFramestores; i++) {
-	// 		auto channel = GetNTV2ChannelForIndex(i);
-	// 		if (cardEntry->ChannelReady(channel,
-	// 					    ajaOutput->mOutputID)) {
-	// 			card->SetVideoFormat(videoFormat, false, false,
-	// 					     channel);
-	// 			card->SetRegisterWriteMode(
-	// 				NTV2_REGWRITE_SYNCTOFRAME, channel);
-	// 			card->SetFrameBufferFormat(channel,
-	// 						   pixelFormat);
-	// 		}
-	// 	}
-	// }
-
-	// Configures crosspoint routing on AJA card
-	// ajaOutput->ClearConnections();
-	// NTV2XptConnections xpt_cnx;
-	// if (!ajaOutput->ConfigureOutputRoute(ioConf, NTV2_MODE_DISPLAY,
-	// 					card, xpt_cnx)) {
-	// 	blog(LOG_ERROR,
-	// 	     "aja_output_start: Error configuring output route!");
-	// 	return false;
-	// }
-	// ajaOutput->CacheConnections(xpt_cnx);
-	// aja::RoutingManager::ConfigureOutputAudio(ioConf, card);
 
 	const auto &formatDesc = ioConf.FormatDesc();
 	struct video_scale_info scaler = {};

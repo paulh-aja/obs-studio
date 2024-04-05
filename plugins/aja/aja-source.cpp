@@ -915,21 +915,6 @@ void aja_source_destroy(void *data)
 		     cardID.c_str());
 	}
 
-	// auto ioConf = ajaSource->GetIoConfig();
-	// aja::RoutingPreset rp;
-	// if (!ajaSource->FindPreset(ioConf, rp)) {
-	// 	blog(LOG_ERROR, "aja_output_stop: Preset not found for IOConfig!");
-	// 	return;
-	// }
-	// NTV2ChannelList relChans;
-	// if (!rp.ToChannelList(relChans, ioConf.FirstChannel(), ioConf.FirstFramestore())) {
-	// 	blog(LOG_ERROR, "aja_output_stop: Error making channel list from RoutingPreset!");
-	// 	return;
-	// }
-	// if (!cardEntry->ReleaseChannels(relChans, NTV2_MODE_CAPTURE, ajaSource->GetName())) {
-	// 	blog(LOG_ERROR, "aja_output_stop: Error releasing channels for card ID %s", cardID.c_str());
-	// }
-
 	delete ajaSource;
 	ajaSource = nullptr;
 }
@@ -1063,26 +1048,6 @@ static void aja_source_update(void *data, obs_data_t *settings)
 			const std::string &ioSelectStr =
 				aja::IOSelectionToString(
 					currConf.IoSelection());
-
-			// aja::RoutingPreset rp;
-			// if (!ajaSource->FindPreset(currConf, rp)) {
-			// 	blog(LOG_WARNING, "aja_source_update: RoutingPreset not found for IOConfig!");
-			// 	// return;
-			// }
-			// NTV2ChannelList relChans;
-			// if (!rp.ToChannelList(relChans, currConf.FirstChannel(), currConf.FirstFramestore())) {
-			// 	blog(LOG_WARNING, "aja_source_update: Error making channel list from RoutingPreset!");
-			// 	// return;
-			// }
-			// if (!cardEntry->ReleaseChannels(relChans, NTV2_MODE_CAPTURE, ajaSource->GetName())) {
-			// 	blog(LOG_WARNING, "aja_source_update: Error releasing channels for card ID %s", currCardID.c_str());
-			// if (!currCardEntry->ReleaseInputSelection(
-			// 	    currConf.IoSelection(), currConf.DeviceID(),
-			// 	    ajaSource->GetName())) {
-			// 	blog(LOG_WARNING,
-			// 	     "aja_source_update: Error releasing IOSelection %s for card ID %s",
-			// 	     ioSelectStr.c_str(),
-			// 	     currCardID.c_str());
 			if (!currCardEntry->ReleaseChannelsForIOConfig(
 				    ajaSource->GetIoConfig(),
 				    ajaSource->GetName())) {
@@ -1098,11 +1063,6 @@ static void aja_source_update(void *data, obs_data_t *settings)
 			}
 		}
 	}
-
-	// if (ioSelect == IOSelection::Invalid) {
-	// 	blog(LOG_DEBUG, "aja_source_update: Invalid IOSelection");
-	// 	return;
-	// }
 
 	IOConfig wantConf(card->GetDeviceID(), NTV2_MODE_CAPTURE, ioSelect,
 			  (static_cast<int>(vidFmtSelect) == kAutoDetect)
@@ -1144,57 +1104,19 @@ static void aja_source_update(void *data, obs_data_t *settings)
 			     "aja_source_update: Error releasing channels for card ID %s",
 			     currCardID.c_str());
 		}
-		// aja::RoutingPreset rp;
-		// if (!ajaSource->FindPreset(currConf, rp)) {
-		// 	blog(LOG_WARNING, "aja_source_update: RoutingPreset not found for IOConfig!");
-		// 	// return;
-		// }
-		// NTV2ChannelList relChans;
-		// if (!rp.ToChannelList(relChans, currConf.FirstChannel(), currConf.FirstFramestore())) {
-		// 	blog(LOG_WARNING, "aja_source_update: Error making channel list from RoutingPreset!");
-		// 	// return;
-		// }
-		// if (!cardEntry->ReleaseChannels(relChans, NTV2_MODE_CAPTURE, ajaSource->GetName())) {
-		// 	blog(LOG_WARNING, "aja_source_update: Error releasing channels for card ID %s", currCardID.c_str());
-		// }
-		// const std::string &ioSelectStr =
-		// 	aja::IOSelectionToString(currConf.IoSelection());
-		// if (!cardEntry->ReleaseInputSelection(currConf.IoSelection(), currConf.DeviceID(), ajaSource->GetName())) {
-		// 	blog(LOG_WARNING,
-		// 	     "aja_source_update: Error releasing IOSelection %s for card ID %s",
-		// 	     ioSelectStr.c_str(), currCardID.c_str());
-		// } else {
-		// 	blog(LOG_INFO,
-		// 	     "aja_source_update: Released IOSelection %s for card ID %s",
-		// 	     ioSelectStr.c_str(), currCardID.c_str());
-		// }
 	}
-
-	// Acquire Channels for current IOSelection
-	// if (!cardEntry->AcquireInputSelection(wantConf.IoSelection(),
-	// 				      wantConf.DeviceID(),
-	// 				      ajaSource->GetName())) {
-	// 	blog(LOG_ERROR,
-	// 	     "aja_source_update: Could not acquire IOSelection %s",
-	// 	     aja::IOSelectionToString(wantConf.IoSelection()).c_str());
-	// 	return;
-	// }
 
 	// Read SDI video payload IDs (VPID) used for helping to determine the wire format
 	NTV2VideoFormat newVidFmt = wantConf.VideoFormat();
 	NTV2PixelFormat newPixFmt = wantConf.PixelFormat();
 	VPIDDataList vpids;
 
-	// TODO(paulh): Use IOConfig channels here instead of IOSelection->InputSources conversion
 	if (!ajaSource->ReadWireFormats(wantConf.DeviceID(),
 					wantConf.IoSelection(), newVidFmt,
 					newPixFmt, vpids)) {
 		blog(LOG_ERROR, "aja_source_update: ReadWireFormats failed!");
 		cardEntry->ReleaseChannelsForIOConfig(wantConf,
 						      ajaSource->GetName());
-		// cardEntry->ReleaseInputSelection(wantConf.IoSelection(),
-		// 				 currConf.DeviceID(),
-		// 				 ajaSource->GetName());
 		return;
 	}
 	wantConf.SetVpidData(vpids);
@@ -1204,9 +1126,6 @@ static void aja_source_update(void *data, obs_data_t *settings)
 	if (static_cast<int32_t>(pixFmtSelect) == kAutoDetect)
 		wantConf.SetPixelFormat(newPixFmt);
 
-	// if (!cardEntry->AcquireChannelsForIOConfig(wantConf, ajaSource->GetName())) {
-	// 	return;
-	// }
 	aja::RoutingPreset rp;
 	if (!cardEntry->FindRoutingPreset(wantConf, rp)) {
 		blog(LOG_WARNING,
@@ -1244,9 +1163,6 @@ static void aja_source_update(void *data, obs_data_t *settings)
 			     .c_str());
 		cardEntry->ReleaseChannelsForIOConfig(wantConf,
 						      ajaSource->GetName());
-		// cardEntry->ReleaseInputSelection(wantConf.IoSelection(),
-		// 				 currConf.DeviceID(),
-		// 				 ajaSource->GetName());
 		return;
 	}
 
