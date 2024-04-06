@@ -161,8 +161,7 @@ public:
 	bool FindPreset(const IOConfig &ioConf, RoutingPreset &rp);
 	bool FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
 			     NTV2Mode mode, NTV2VideoFormat vf,
-			     NTV2PixelFormat pf, VPIDStandard standard,
-			     HDMIWireFormat hwf, RoutingPreset &preset);
+			     NTV2PixelFormat pf, VPIDStandard standard, RoutingPreset &preset);
 
 	bool ConfigureRouting(const IOConfig &ioConf, const RoutingPreset &rp,
 			      CNTV2Card *card, NTV2XptConnections &cnx);

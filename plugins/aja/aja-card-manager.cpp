@@ -459,8 +459,9 @@ bool CardEntry::ChannelsReady(const NTV2ChannelList &chans,
 NTV2ChannelList CardEntry::inputSelectionChannels(IOSelection io,
 						  NTV2DeviceID id) const
 {
+	(void)io;
+	(void)id;
 	NTV2ChannelList channels;
-
 	return channels;
 }
 
@@ -581,7 +582,7 @@ bool CardEntry::OutputSelectionReady(IOSelection io, NTV2DeviceID id,
 				channelsReady++;
 		}
 
-		return channelsReady == chans.size();
+		return channelsReady == (int)chans.size();
 	}
 
 	return false;

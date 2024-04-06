@@ -119,7 +119,6 @@ RoutingPreset::routeStringSubstitute(NTV2Channel firstChannel,
 	// }
 
 	std::string tmp = route_string;
-	ULWord first_channel_index = GetIndexForNTV2Channel(firstChannel);
 	ULWord first_framestore_index = GetIndexForNTV2Channel(firstFramestore);
 	const std::vector<std::string> fs_associated = {
 		kFramebufferNickname, kTSIMuxNickname, kDualLinkInNickname,
@@ -136,12 +135,12 @@ RoutingPreset::routeStringSubstitute(NTV2Channel firstChannel,
 		}
 		first_framestore_index++;
 	}
-	ULWord start_channel_index = GetIndexForNTV2Channel(firstChannel);
+	ULWord first_channel_index = GetIndexForNTV2Channel(firstChannel);
 	for (ULWord c = 0; c < NTV2_MAX_NUM_CHANNELS; c++) {
 		std::string channel_placeholder =
 			std::string("{ch" + aja::to_string(c + 1) + "}");
 		aja::replace(tmp, channel_placeholder,
-			     aja::to_string(start_channel_index++));
+			     aja::to_string(first_channel_index++));
 	}
 
 	return tmp;
@@ -285,8 +284,7 @@ bool RoutingManager::FindPreset(const IOConfig &ioConf, RoutingPreset &rp)
 {
 	return FindFirstPreset(ioConf.ConnectKind(), ioConf.DeviceID(),
 			       ioConf.Mode(), ioConf.VideoFormat(),
-			       ioConf.PixelFormat(), ioConf.VpidStandard(),
-			       ioConf.HdmiWireFormat(), rp);
+			       ioConf.PixelFormat(), ioConf.VpidStandard(), rp);
 }
 
 bool RoutingManager::ConfigureRouting(const IOConfig &ioConf,
@@ -616,7 +614,7 @@ bool RoutingManager::PresetByName(RoutingPresetID id,
 bool RoutingManager::FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
 				     NTV2Mode mode, NTV2VideoFormat vf,
 				     NTV2PixelFormat pf, VPIDStandard standard,
-				     HDMIWireFormat hwf, RoutingPreset &preset)
+				     RoutingPreset &preset)
 {
 	if (NTV2DeviceCanDoVideoFormat(id, vf) &&
 	    NTV2DeviceCanDoFrameBufferFormat(id, pf)) {
