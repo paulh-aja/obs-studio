@@ -38,7 +38,8 @@ typedef enum {
 	HDMI_UHD_4K_YCbCr_Capture,
 	AJA_RP_OUT_HDMI_ONE_WIRE_YCBCR,
 	HDMI_UHD_4K_LFR_YCbCr_Display,
-	HDMI_UHD_4K_LFR_YCbCr_Display_Kona5_8K,
+	AJA_RP_OUT_HDMI_UHD4K_YCBCR_ONE_WIRE_INTEGRATED_TSI,
+	AJA_RP_OUT_HDMI_UHD4K_RGB_ONE_WIRE_INTEGRATED_TSI,
 	HDMI_HD_LFR_YCbCr_Display_TTapPro,
 	HDMI_HD_HFR_YCbCr_Display_TTapPro,
 	HDMI_UHD_4K_LFR_YCbCr_Display_TTapPro,
@@ -161,7 +162,8 @@ public:
 	bool FindPreset(const IOConfig &ioConf, RoutingPreset &rp);
 	bool FindFirstPreset(ConnectionKind kind, NTV2DeviceID id,
 			     NTV2Mode mode, NTV2VideoFormat vf,
-			     NTV2PixelFormat pf, VPIDStandard standard, RoutingPreset &preset);
+			     NTV2PixelFormat pf, VPIDStandard standard,
+			     RoutingPreset &preset);
 
 	bool ConfigureRouting(const IOConfig &ioConf, const RoutingPreset &rp,
 			      CNTV2Card *card, NTV2XptConnections &cnx);

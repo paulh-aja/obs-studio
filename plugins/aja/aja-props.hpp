@@ -67,12 +67,14 @@ public:
 	SDITransport SdiTransport() const;
 	SDITransport4K SdiTransport4K() const;
 	HDMIWireFormat HdmiWireFormat() const;
+	NTV2HDMIRange HdmiRange() const;
 	uint32_t AudioNumChannels() const;
 	uint32_t AudioSampleSize() const;
 	uint32_t AudioSampleRate() const;
 	bool IsRgb() const;
 	bool IsHighFramerate() const;
 	bool AutoDetect() const;
+	bool HdmiDecimate() const;
 	void SetVideoFormat(NTV2VideoFormat vf);
 	void SetPixelFormat(NTV2PixelFormat pf);
 	void SetDeviceID(NTV2DeviceID id);
@@ -84,6 +86,8 @@ public:
 	void SetAudioSampleSize(uint32_t size);
 	void SetAudioSampleRate(uint32_t rate);
 	void SetAutoDetect(bool enable = false);
+	void SetHdmiDecimate(bool enable = false);
+	void SetHdmiRange(NTV2HDMIRange range);
 	void SetVpidData(const VPIDDataList &vpids);
 	void SetFirstChannel(NTV2Channel ch);
 	void SetFirstFramestore(NTV2Channel ch);
@@ -108,6 +112,8 @@ private:
 	uint32_t mAudioSampleRate;
 	NTV2Channel mFirstChannelOverride;
 	NTV2Channel mFirstFramestoreOverride;
+	NTV2HDMIRange mHdmiRange;
+	bool mHdmiDecimate;
 	bool mAutoDetect;
 };
 

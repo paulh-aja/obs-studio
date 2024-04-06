@@ -21,7 +21,9 @@ IOConfig::IOConfig()
 	  mAudioSampleRate(kDefaultAudioSampleRate),
 	  mFirstChannelOverride(NTV2_CHANNEL_INVALID),
 	  mFirstFramestoreOverride(NTV2_CHANNEL_INVALID),
-	  mAutoDetect(false)
+	  mHdmiRange(NTV2_HDMIRangeSMPTE),
+	  mAutoDetect(false),
+	  mHdmiDecimate(false)
 {
 	init();
 }
@@ -42,7 +44,9 @@ IOConfig::IOConfig(NTV2DeviceID id, NTV2Mode mode, IOSelection io,
 	  mAudioSampleRate(kDefaultAudioSampleRate),
 	  mFirstChannelOverride(NTV2_CHANNEL_INVALID),
 	  mFirstFramestoreOverride(NTV2_CHANNEL_INVALID),
-	  mAutoDetect(false)
+	  mHdmiRange(NTV2_HDMIRangeSMPTE),
+	  mAutoDetect(false),
+	  mHdmiDecimate(false)
 {
 	init();
 }
@@ -492,6 +496,10 @@ HDMIWireFormat IOConfig::HdmiWireFormat() const
 {
 	return mHdmiWireFormat;
 }
+NTV2HDMIRange IOConfig::HdmiRange() const
+{
+	return mHdmiRange;
+}
 ConnectionKind IOConfig::ConnectKind() const
 {
 	return aja::IOSelectionToConnectionKind(IoSelection());
@@ -549,6 +557,10 @@ bool IOConfig::AutoDetect() const
 {
 	return mAutoDetect;
 }
+bool IOConfig::HdmiDecimate() const
+{
+	return mHdmiDecimate;
+}
 void IOConfig::SetVideoFormat(NTV2VideoFormat vf)
 {
 	mVideoFormat = vf;
@@ -596,6 +608,14 @@ void IOConfig::SetAudioSampleRate(uint32_t rate)
 void IOConfig::SetAutoDetect(bool enable)
 {
 	mAutoDetect = enable;
+}
+void IOConfig::SetHdmiDecimate(bool enable)
+{
+	mHdmiDecimate = enable;
+}
+void IOConfig::SetHdmiRange(NTV2HDMIRange range)
+{
+	mHdmiRange = range;
 }
 void IOConfig::SetVpidData(const VPIDDataList &vpids)
 {

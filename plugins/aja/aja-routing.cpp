@@ -81,7 +81,8 @@ bool RoutingPreset::ToChannelList(NTV2ChannelList &chans, NTV2Mode mode,
 		    (id == AJA_RP_OUT_HDMI_ONE_WIRE_RGB ||
 		     id == AJA_RP_OUT_HDMI_ONE_WIRE_YCBCR ||
 		     id == HDMI_UHD_4K_LFR_YCbCr_Display ||
-		     id == HDMI_UHD_4K_LFR_YCbCr_Display_Kona5_8K)) {
+		     id == AJA_RP_OUT_HDMI_UHD4K_YCBCR_ONE_WIRE_INTEGRATED_TSI ||
+		     id == AJA_RP_OUT_HDMI_UHD4K_RGB_ONE_WIRE_INTEGRATED_TSI)) {
 			continue;
 		}
 		for (auto &&c : w.second) {
@@ -311,6 +312,7 @@ bool RoutingManager::ConfigureRouting(const IOConfig &ioConf,
 
 	bool isCapture = ioConf.Mode() == NTV2_MODE_CAPTURE;
 	bool isRGB = NTV2_IS_FBF_RGB(ioConf.PixelFormat());
+	bool is4K = NTV2_IS_4K_VIDEO_FORMAT(ioConf.VideoFormat());
 	NTV2ChannelList doneChans;
 	WidgetChannelMap wcMap;
 	rp.ToWidgetChannelMap(wcMap, ioConf.FirstChannel(),
@@ -377,6 +379,9 @@ bool RoutingManager::ConfigureRouting(const IOConfig &ioConf,
 				}
 			} else if (e.first == kHDMINickname) {
 				// HDMI settings
+				card->SetHDMIOutVideoStandard(
+					GetNTV2StandardFromVideoFormat(
+						ioConf.VideoFormat()));
 				card->SetHDMIOutColorSpace(
 					isRGB ? NTV2_HDMIColorSpaceRGB
 					      : NTV2_HDMIColorSpaceYCbCr);
@@ -388,12 +393,16 @@ bool RoutingManager::ConfigureRouting(const IOConfig &ioConf,
 					isRGB ? NTV2_HDMI_RGB : NTV2_HDMI_422);
 				card->SetHDMIOutProtocol(NTV2_HDMIProtocolHDMI);
 				card->SetHDMIV2Mode(
-					NTV2_IS_4K_VIDEO_FORMAT(
-						ioConf.VideoFormat())
-						? (isCapture
-							   ? NTV2_HDMI_V2_4K_CAPTURE
-							   : NTV2_HDMI_V2_4K_PLAYBACK)
-						: NTV2_HDMI_V2_HDSD_BIDIRECTIONAL);
+					is4K ? (isCapture
+							? NTV2_HDMI_V2_4K_CAPTURE
+							: NTV2_HDMI_V2_4K_PLAYBACK)
+					     : NTV2_HDMI_V2_HDSD_BIDIRECTIONAL);
+				card->SetHDMIOutTsiIO(
+					is4K && NTV2_IS_TSI_FORMAT(
+							ioConf.VideoFormat()));
+				card->SetHDMIOutDecimateMode(
+					ioConf.HdmiDecimate());
+				card->SetHDMIOutRange(ioConf.HdmiRange());
 			}
 		}
 	}

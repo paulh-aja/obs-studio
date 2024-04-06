@@ -23,7 +23,10 @@ std::string RoutingPresetIDString(RoutingPresetID id)
 		ENUM_CASE_RETURN_STRING(HDMI_UHD_4K_YCbCr_Capture);
 		ENUM_CASE_RETURN_STRING(AJA_RP_OUT_HDMI_ONE_WIRE_YCBCR);
 		ENUM_CASE_RETURN_STRING(HDMI_UHD_4K_LFR_YCbCr_Display);
-		ENUM_CASE_RETURN_STRING(HDMI_UHD_4K_LFR_YCbCr_Display_Kona5_8K);
+		ENUM_CASE_RETURN_STRING(
+			AJA_RP_OUT_HDMI_UHD4K_YCBCR_ONE_WIRE_INTEGRATED_TSI);
+		ENUM_CASE_RETURN_STRING(
+			AJA_RP_OUT_HDMI_UHD4K_RGB_ONE_WIRE_INTEGRATED_TSI);
 		ENUM_CASE_RETURN_STRING(HDMI_HD_LFR_YCbCr_Display_TTapPro);
 		ENUM_CASE_RETURN_STRING(HDMI_HD_HFR_YCbCr_Display_TTapPro);
 		ENUM_CASE_RETURN_STRING(HDMI_UHD_4K_LFR_YCbCr_Display_TTapPro);
@@ -280,7 +283,7 @@ void RoutingManager::build_preset_table()
 		  kEnable4KTSI,
 		  {RasterDefinition::UHD_4K},
 		  {VPIDStandard_Unknown},
-		  {},
+		  {DEVICE_ID_KONA5, DEVICE_ID_IO4K, DEVICE_ID_IO4KPLUS},
 		  false,
 		  "fb[{ch1}][0]->tsi[{ch1}][0];"
 		  "fb[{ch1}][1]->tsi[{ch1}][1];"
@@ -290,8 +293,8 @@ void RoutingManager::build_preset_table()
 		  "tsi[{ch1}][1]->hdmi[0][1];"
 		  "tsi[{ch2}][0]->hdmi[0][2];"
 		  "tsi[{ch2}][1]->hdmi[0][3];"}},
-		{HDMI_UHD_4K_LFR_YCbCr_Display_Kona5_8K,
-		 {HDMI_UHD_4K_LFR_YCbCr_Display_Kona5_8K,
+		{AJA_RP_OUT_HDMI_UHD4K_YCBCR_ONE_WIRE_INTEGRATED_TSI,
+		 {AJA_RP_OUT_HDMI_UHD4K_YCBCR_ONE_WIRE_INTEGRATED_TSI,
 		  ConnectionKind::HDMI,
 		  NTV2_MODE_DISPLAY,
 		  1,
@@ -299,9 +302,21 @@ void RoutingManager::build_preset_table()
 		  kEnable4KTSI,
 		  {RasterDefinition::UHD_4K},
 		  {VPIDStandard_Unknown},
-		  {DEVICE_ID_KONA5_8K},
+		  {DEVICE_ID_KONA5_8K, DEVICE_ID_KONAX},
 		  false,
 		  "fb[{ch1}][0]->hdmi[0][0];"}},
+		{AJA_RP_OUT_HDMI_UHD4K_RGB_ONE_WIRE_INTEGRATED_TSI,
+		 {AJA_RP_OUT_HDMI_UHD4K_RGB_ONE_WIRE_INTEGRATED_TSI,
+		  ConnectionKind::HDMI,
+		  NTV2_MODE_DISPLAY,
+		  1,
+		  1,
+		  kEnable4KTSI,
+		  {RasterDefinition::UHD_4K},
+		  {VPIDStandard_Unknown},
+		  {DEVICE_ID_KONA5_8K, DEVICE_ID_KONAX},
+		  true,
+		  "fb[{ch1}][2]->hdmi[0][0];"}},
 		{HDMI_HD_LFR_YCbCr_Display_TTapPro,
 		 {HDMI_HD_LFR_YCbCr_Display_TTapPro,
 		  ConnectionKind::HDMI,
