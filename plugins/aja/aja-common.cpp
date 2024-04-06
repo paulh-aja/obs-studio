@@ -562,6 +562,99 @@ NTV2VideoFormat InterlacedFormatForPsfFormat(NTV2VideoFormat vf)
 	return result;
 }
 
+NTV2VideoFormat PsfFormatForProgressiveFormat(NTV2VideoFormat vf)
+{
+	NTV2VideoFormat result = vf;
+	switch (vf) {
+	default:
+		break;
+	case NTV2_FORMAT_1080p_2398:
+		result = NTV2_FORMAT_1080psf_2398;
+		break;
+	case NTV2_FORMAT_1080p_2400:
+		result = NTV2_FORMAT_1080psf_2400;
+		break;
+	case NTV2_FORMAT_1080p_2500:
+		result = NTV2_FORMAT_1080psf_2500_2;
+		break;
+	case NTV2_FORMAT_1080p_2997:
+		result = NTV2_FORMAT_1080psf_2997_2;
+		break;
+	case NTV2_FORMAT_1080p_3000:
+		result = NTV2_FORMAT_1080psf_3000_2;
+		break;
+	case NTV2_FORMAT_1080p_2K_2398:
+		result = NTV2_FORMAT_1080psf_2K_2398;
+		break;
+	case NTV2_FORMAT_1080p_2K_2400:
+		result = NTV2_FORMAT_1080psf_2K_2400;
+		break;
+	case NTV2_FORMAT_1080p_2K_2500:
+		result = NTV2_FORMAT_1080psf_2K_2500;
+		break;
+	case NTV2_FORMAT_4x1920x1080p_2398:
+		result = NTV2_FORMAT_4x1920x1080psf_2398;
+		break;
+	case NTV2_FORMAT_4x1920x1080p_2400:
+		result = NTV2_FORMAT_4x1920x1080psf_2400;
+		break;
+	case NTV2_FORMAT_4x1920x1080p_2500:
+		result = NTV2_FORMAT_4x1920x1080psf_2500;
+		break;
+	case NTV2_FORMAT_4x1920x1080p_2997:
+		result = NTV2_FORMAT_4x1920x1080psf_2997;
+		break;
+	case NTV2_FORMAT_4x1920x1080p_3000:
+		result = NTV2_FORMAT_4x1920x1080psf_3000;
+		break;
+	case NTV2_FORMAT_4x2048x1080p_2398:
+		result = NTV2_FORMAT_4x2048x1080psf_2398;
+		break;
+	case NTV2_FORMAT_4x2048x1080p_2400:
+		result = NTV2_FORMAT_4x2048x1080psf_2400;
+		break;
+	case NTV2_FORMAT_4x2048x1080p_2500:
+		result = NTV2_FORMAT_4x2048x1080psf_2500;
+		break;
+	case NTV2_FORMAT_4x2048x1080p_2997:
+		result = NTV2_FORMAT_4x2048x1080psf_2997;
+		break;
+	case NTV2_FORMAT_4x2048x1080p_3000:
+		result = NTV2_FORMAT_4x2048x1080psf_3000;
+		break;
+	case NTV2_FORMAT_3840x2160p_2398:
+		result = NTV2_FORMAT_3840x2160psf_2398;
+		break;
+	case NTV2_FORMAT_3840x2160p_2400:
+		result = NTV2_FORMAT_3840x2160psf_2400;
+		break;
+	case NTV2_FORMAT_3840x2160p_2500:
+		result = NTV2_FORMAT_3840x2160psf_2500;
+		break;
+	case NTV2_FORMAT_3840x2160p_2997:
+		result = NTV2_FORMAT_3840x2160psf_2997;
+		break;
+	case NTV2_FORMAT_3840x2160p_3000:
+		result = NTV2_FORMAT_3840x2160psf_3000;
+		break;
+	case NTV2_FORMAT_4096x2160p_2398:
+		result = NTV2_FORMAT_4096x2160psf_2398;
+		break;
+	case NTV2_FORMAT_4096x2160p_2400:
+		result = NTV2_FORMAT_4096x2160psf_2400;
+		break;
+	case NTV2_FORMAT_4096x2160p_2500:
+		result = NTV2_FORMAT_4096x2160psf_2500;
+		break;
+	case NTV2_FORMAT_4096x2160p_2997:
+		result = NTV2_FORMAT_4096x2160psf_2997;
+		break;
+	case NTV2_FORMAT_4096x2160p_3000:
+		result = NTV2_FORMAT_4096x2160psf_3000;
+		break;
+	}
+	return result;
+}
 // Certain cards only have 1 SDI spigot.
 bool IsSingleSDIDevice(NTV2DeviceID id)
 {

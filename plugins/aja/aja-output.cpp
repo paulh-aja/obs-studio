@@ -180,6 +180,16 @@ void AJAOutput::Initialize(const IOConfig &ioConf)
 				    NTV2_TestPatt_Black, i);
 	}
 
+	for (ULWord i = 0; i < NTV2DeviceGetNumVideoChannels(ioConf.DeviceID());
+	     i++) {
+		mCard->SetRegisterWriteMode(
+			NTV2_VIDEO_FORMAT_HAS_PROGRESSIVE_PICTURE(
+				ioConf.VideoFormat())
+				? NTV2_REGWRITE_SYNCTOFRAME
+				: NTV2_REGWRITE_SYNCTOFIELD,
+			GetNTV2ChannelForIndex(i));
+	}
+
 	mCard->WaitForOutputVerticalInterrupt(ioConf.FirstChannel());
 	const auto &cardFrameRate =
 		GetNTV2FrameRateFromVideoFormat(ioConf.VideoFormat());
@@ -968,15 +978,14 @@ bool aja_output_device_changed(void *data, obs_properties_t *props,
 	// show video formats within the same framerate family. If Channel 1 is
 	// not active we just go ahead and try to set all framestores to the same video format.
 	// This is because Channel 1's clock rate will govern the card's Free Run clock.
-	NTV2VideoFormat videoFormatChannel1 = NTV2_FORMAT_UNKNOWN;
+	NTV2VideoFormat vidFmtCh1 = NTV2_FORMAT_UNKNOWN;
 	if (!cardEntry->ChannelReady(NTV2_CHANNEL1, outputID)) {
-		card->GetVideoFormat(videoFormatChannel1, NTV2_CHANNEL1);
+		card->GetVideoFormat(vidFmtCh1, NTV2_CHANNEL1);
 	}
 
 	obs_property_list_clear(vid_fmt_list);
 	populate_video_format_list(
-		deviceID, vid_fmt_list, videoFormatChannel1,
-		WANT_4K_HFR_FORMATS,
+		deviceID, vid_fmt_list, vidFmtCh1, WANT_4K_HFR_FORMATS,
 		obs_data_get_bool(settings, kUIPropMatchGenlock.id),
 		obs_data_get_bool(settings, kUIPropMatchOBS.id));
 
@@ -1111,6 +1120,7 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 				       (UWord)cardEntry->GetCardIndex(),
 				       deviceID);
 
+	bool isInterlaceCh1 = false;
 	NTV2XptConnections cnx;
 	aja::RoutingPreset rp;
 	aja::WidgetChannelMap widgetMap;
@@ -1144,6 +1154,20 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 						 kUIPropSDITransport4K.id)));
 		}
 	}
+
+	NTV2VideoFormat vidFmtCh1;
+	if (!cardEntry->ChannelReady(NTV2_CHANNEL1, outputID)) {
+		card->GetVideoFormat(vidFmtCh1, NTV2_CHANNEL1);
+	}
+	isInterlaceCh1 =
+		!NTV2_VIDEO_FORMAT_HAS_PROGRESSIVE_PICTURE(vidFmtCh1) &&
+		!NTV2_IS_PSF_VIDEO_FORMAT(vidFmtCh1);
+	if (isInterlaceCh1 &&
+	    NTV2_VIDEO_FORMAT_HAS_PROGRESSIVE_PICTURE(ioConf.VideoFormat())) {
+		ioConf.SetVideoFormat(aja::PsfFormatForProgressiveFormat(
+			ioConf.VideoFormat()));
+	}
+
 	if (!cardEntry->FindRoutingPreset(ioConf, rp)) {
 		err = true;
 		goto fail;

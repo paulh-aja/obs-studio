@@ -319,8 +319,12 @@ bool RoutingManager::ConfigureRouting(const IOConfig &ioConf,
 			      ioConf.FirstFramestore());
 	for (auto &e : wcMap) {
 		for (auto &channel : e.second) {
-			card->SetRegisterWriteMode(NTV2_REGWRITE_SYNCTOFRAME,
-						   channel);
+			card->SetRegisterWriteMode(
+				NTV2_VIDEO_FORMAT_HAS_PROGRESSIVE_PICTURE(
+					ioConf.VideoFormat())
+					? NTV2_REGWRITE_SYNCTOFRAME
+					: NTV2_REGWRITE_SYNCTOFIELD,
+				channel);
 			if (e.first == kFramebufferNickname) {
 				// Framestore settings
 				card->EnableChannel(channel);

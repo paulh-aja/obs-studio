@@ -88,6 +88,7 @@ extern bool CardCanDo1xSDI12G(NTV2DeviceID id);
 extern bool Is3GLevelB(CNTV2Card *card, NTV2Channel channel);
 extern NTV2VideoFormat GetLevelAFormatForLevelBFormat(NTV2VideoFormat vf);
 extern NTV2VideoFormat InterlacedFormatForPsfFormat(NTV2VideoFormat vf);
+extern NTV2VideoFormat PsfFormatForProgressiveFormat(NTV2VideoFormat vf);
 extern bool IsSingleSDIDevice(NTV2DeviceID id);
 extern bool IsIODevice(NTV2DeviceID id);
 extern bool IsRetail12GSDICard(NTV2DeviceID id);
