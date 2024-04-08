@@ -1121,6 +1121,7 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 				       deviceID);
 
 	bool isInterlaceCh1 = false;
+	NTV2VideoFormat vidFmtCh1 = NTV2_FORMAT_UNKNOWN;
 	NTV2XptConnections cnx;
 	aja::RoutingPreset rp;
 	aja::WidgetChannelMap widgetMap;
@@ -1155,7 +1156,6 @@ static void *aja_output_create(obs_data_t *settings, obs_output_t *output)
 		}
 	}
 
-	NTV2VideoFormat vidFmtCh1;
 	if (!cardEntry->ChannelReady(NTV2_CHANNEL1, outputID)) {
 		card->GetVideoFormat(vidFmtCh1, NTV2_CHANNEL1);
 	}
