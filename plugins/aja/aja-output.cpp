@@ -308,7 +308,7 @@ void AJAOutput::GenerateTestPattern(NTV2VideoFormat vf, NTV2PixelFormat pf,
 		    frameNum,
 		    reinterpret_cast<ULWord *>(&mTestPattern.data()[0]),
 		    static_cast<ULWord>(mTestPattern.size()))) {
-		mCard->SetOutputFrame(mIoConfig.FirstChannel(), frameNum);
+		mCard->SetOutputFrame(mIoConfig.FirstFramestore(), frameNum);
 	}
 }
 
@@ -757,7 +757,7 @@ void AJAOutput::OutputThread(AJAThread *thread, void *ctx)
 					ajaOutput->mPlayCardNext = playCardNext;
 					// Increment the play frame
 					ajaOutput->mCard->SetOutputFrame(
-						ioConf.FirstChannel(),
+						ioConf.FirstFramestore(),
 						ajaOutput->mPlayCardNext);
 					ajaOutput->mVideoPlayFrames++;
 				}
